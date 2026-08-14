@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hibrit Kuantum Optimizasyon Motoru</title>
+    <!-- Google Fonts: Outfit & Space Grotesk -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons for clean dashboard UI -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom Style Sheet -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- HEADER -->
+        <header class="main-header">
+            <div class="logo-area">
+                <div class="logo-icon-container">
+                    <i data-lucide="atom" class="logo-icon glow-cyan"></i>
+                </div>
+                <div>
+                    <h1>HİBRİT KUANTUM</h1>
+                    <h2>Optimizasyon Motoru</h2>
+                </div>
+            </div>
+            <div class="status-indicator-bar">
+                <div class="status-badge" id="status-openai">
+                    <span class="status-dot"></span>
+                    <span>Azure OpenAI: <strong class="status-text">Bağlanıyor...</strong></span>
+                </div>
+                <div class="status-badge" id="status-quantum">
+                    <span class="status-dot"></span>
+                    <span>Azure Quantum: <strong class="status-text">Bağlanıyor...</strong></span>
+                </div>
+                <div class="status-badge" id="status-local">
+                    <span class="status-dot"></span>
+                    <span>Yerel Simülatör: <strong class="status-text">Hazır</strong></span>
+                </div>
+            </div>
+        </header>
+
+        <!-- DASHBOARD GRID -->
+        <div class="dashboard-grid">
+            
+            <!-- COLUMN 1: Problem Definition & Configuration -->
+            <section class="grid-col glass-card" id="col-inputs">
+                <div class="card-header">
+                    <i data-lucide="sliders" class="header-icon text-cyan"></i>
+                    <h3>Kontrol Paneli & Girdiler</h3>
+                </div>
+
+                <!-- Azure Config Dynamic Panel (Collapsible) -->
+                <details class="config-details">
+                    <summary class="config-summary">
+                        <span>API Entegrasyon Ayarları</span>
+                        <i data-lucide="chevron-down" class="chevron-icon"></i>
+                    </summary>
+                    <div class="config-form">
+                        <div class="input-group">
+                            <label for="cfg-openai-key">Azure OpenAI API Key</label>
+                            <input type="password" id="cfg-openai-key" placeholder="••••••••••••••••">
+                        </div>
+                        <div class="input-group">
+                            <label for="cfg-openai-endpoint">Azure OpenAI Endpoint</label>
+                            <input type="text" id="cfg-openai-endpoint" placeholder="https://your-resource.openai.azure.com/">
+                        </div>
+                        <div class="input-group">
+                            <label for="cfg-openai-deployment">GPT Model Deployment</label>
+                            <input type="text" id="cfg-openai-deployment" placeholder="gpt-4">
+                        </div>
+                        <div class="input-group">
+                            <label for="cfg-quantum-id">Azure Quantum Resource ID</label>
+                            <input type="text" id="cfg-quantum-id" placeholder="/subscriptions/.../Workspaces/...">
+                        </div>
+                        <div class="input-group">
+                            <label for="cfg-quantum-location">Azure Quantum Bölgesi</label>
+                            <input type="text" id="cfg-quantum-location" placeholder="eastus">
+                        </div>
+                        <button class="btn btn-secondary btn-full" id="btn-save-config">
+                            <i data-lucide="save"></i> Kaydet ve Bağlantıyı Test Et
+                        </button>
+                    </div>
+                </details>
+
+                <hr class="divider">
+
+                <!-- Problem Definition -->
+                <div class="problem-section">
+                    <div class="input-group">
+                        <label for="problem-template">Hazır Şablonlar</label>
+                        <select id="problem-template">
+                            <option value="custom">Özel Problem Tanımı (Doğal Dil)</option>
+                            <option value="maxcut">Maksimum Kesim (Max-Cut) Problemi - 5 Düğüm</option>
+                            <option value="tsp">Gezgin Satıcı Problemi (TSP) - 3 Şehir</option>
+                            <option value="knapsack">Kısıtlı Sırt Çantası Optimizasyonu - 4 Eşya</option>
+                            <option value="portfolio">Finansal Portföy Optimizasyonu - 4 Varlık</option>
+                        </select>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="problem-desc">Problem Açıklaması</label>
+                        <textarea id="problem-desc" rows="6" placeholder="Probleminizi doğal dilde açıklayın veya yukarıdaki hazır şablonlardan birini seçin..."></textarea>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="variable-slider">Karar Değişkeni Sayısı (Qubit): <span id="variable-val">5</span></label>
+                        <input type="range" id="variable-slider" min="2" max="14" value="5">
+                        <small class="help-text">Not: Simülasyon kararlılığı için yerel simülatör maks 14 qubit ile sınırlıdır.</small>
+                    </div>
+
+                    <button class="btn btn-primary btn-full" id="btn-formulate">
+                        <i data-lucide="sparkles" class="pulse-icon"></i> QUBO Formüle Et (Yapay Zeka)
+                    </button>
+                </div>
+            </section>
+
+            <!-- COLUMN 2: Mathematical QUBO & Solver Settings -->
+            <section class="grid-col glass-card" id="col-qubo">
+                <div class="card-header">
+                    <i data-lucide="binary" class="header-icon text-purple"></i>
+                    <h3>Matematiksel QUBO Modeli</h3>
+                </div>
+
+                <div class="qubo-container">
+                    <div class="ai-explanation-box" id="qubo-explanation">
+                        <p class="text-muted">Problem formüle edildiğinde, Azure OpenAI tarafından oluşturulan kısıt ve amaç fonksiyonu açıklamaları burada gösterilecektir.</p>
+                    </div>
+
+                    <div class="matrix-viewer-card">
+                        <h4>Q Katsayılar Matrisi (Üst Üçgen)</h4>
+                        <div class="matrix-wrapper" id="matrix-grid-container">
+                            <div class="matrix-placeholder">Formülasyon bekleniyor...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <hr class="divider">
+
+                <div class="solver-section">
+                    <div class="input-group">
+                        <label for="solver-method">Çözücü Motoru</label>
+                        <select id="solver-method">
+                            <option value="QAOA">QAOA (Kuantum Devre Simülatörü)</option>
+                            <option value="SA">Simüle Tavlama (Klasik Hızlı Çözücü)</option>
+                            <option value="AQ">Azure Quantum (Toshiba SQBM+ / Bulut)</option>
+                        </select>
+                    </div>
+
+                    <div class="qaoa-params" id="qaoa-parameters-box">
+                        <div class="grid-2col">
+                            <div class="input-group">
+                                <label for="qaoa-p">Devre Derinliği (p)</label>
+                                <input type="number" id="qaoa-p" min="1" max="5" value="1">
+                            </div>
+                            <div class="input-group">
+                                <label for="qaoa-iter">Klasik Opt. İterasyonu</label>
+                                <input type="number" id="qaoa-iter" min="5" max="100" value="30">
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-purple btn-full" id="btn-solve" disabled>
+                        <i data-lucide="play"></i> Optimizasyonu Çalıştır
+                    </button>
+                </div>
+            </section>
+
+            <!-- COLUMN 3: Quantum Performance & Explainable AI -->
+            <section class="grid-col glass-card" id="col-results">
+                <div class="card-header">
+                    <i data-lucide="trending-down" class="header-icon text-emerald"></i>
+                    <h3>Kuantum Analizi ve Çözüm Raporu</h3>
+                </div>
+
+                <!-- Tabs to switch between Chart, Circuit and Explanation -->
+                <div class="tabs-header">
+                    <button class="tab-btn active" data-tab="tab-chart">
+                        <i data-lucide="bar-chart-3"></i> Grafik
+                    </button>
+                    <button class="tab-btn" data-tab="tab-circuit" id="tab-btn-circuit">
+                        <i data-lucide="cpu"></i> Devre Şeması
+                    </button>
+                    <button class="tab-btn" data-tab="tab-explanation">
+                        <i data-lucide="message-square"></i> GPT Raporu
+                    </button>
+                </div>
+
+                <div class="tabs-content">
+                    <!-- TAB 1: Charts -->
+                    <div class="tab-panel active" id="tab-chart">
+                        <div class="chart-container">
+                            <canvas id="convergence-chart"></canvas>
+                        </div>
+                        <div class="chart-container margin-top">
+                            <canvas id="probability-chart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- TAB 2: Circuit String -->
+                    <div class="tab-panel" id="tab-circuit">
+                        <div class="circuit-output-box">
+                            <pre id="circuit-code-block">Kuantum devresi çizelgesi bulunmamaktadır (Yalnızca QAOA çözücüsünde oluşturulur).</pre>
+                        </div>
+                    </div>
+
+                    <!-- TAB 3: AI Explanation -->
+                    <div class="tab-panel" id="tab-explanation">
+                        <div class="ai-report-bubble" id="ai-report-content">
+                            <p class="text-muted">Optimizasyon tamamlandığında, Azure OpenAI sonuçları ve çözümün fiziksel anlamını açıklayan raporu buraya yazacaktır.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Summary Box at Bottom -->
+                <div class="summary-box" id="result-summary-box" style="display: none;">
+                    <div class="summary-item">
+                        <span class="label">En İyi Durum:</span>
+                        <span class="value text-cyan" id="sum-best-state">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="label">Minimum Enerji:</span>
+                        <span class="value text-purple" id="sum-best-energy">-</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="label">Hesaplama Süresi:</span>
+                        <span class="value text-emerald" id="sum-time">-</span>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <!-- GLOBAL LOADING SPINNER OVERLAY -->
+    <div class="loading-overlay" id="loading-spinner">
+        <div class="quantum-loader">
+            <div class="orbit orbit1"></div>
+            <div class="orbit orbit2"></div>
+            <div class="orbit orbit3"></div>
+            <i data-lucide="atom" class="atom-icon glow-cyan"></i>
+        </div>
+        <p id="loading-text">Kuantum Simülatörü Hazırlanıyor...</p>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
