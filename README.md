@@ -2,6 +2,13 @@
 
 Microsoft Azure OpenAI, Microsoft QDK ve Azure Quantum entegrasyonuna hazır; doğal dille anlatılan rota problemlerini klasik ve kuantum yöntemlerle karşılaştıran eğitim amaçlı hibrit optimizasyon laboratuvarı.
 
+## Canlı bağlantılar
+
+- **Herkese açık web demosu:** https://fatmaturkmen244-spec.github.io/kuantum-hibrit-optimizasyon/
+- **Sunum:** [Quantum_Route_Lab_Sunum_v2.pptx](Quantum_Route_Lab_Sunum_v2.pptx)
+
+Web demosu tarayıcı içinde kesin, klasik hızlı ve kuantum-esinli olasılık modelini çalıştırır. Microsoft Q# ve Azure Quantum özellikleri, Python/QDK tabanlı tam uygulamada çalışır; arayüz bu seviyeleri birbirinden açıkça ayırır.
+
 ## Demo neler yapıyor?
 
 - 3–10 istasyon için kapalı rota oluşturur.
