@@ -1,27 +1,11 @@
-# Python
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-*.egg
-*.egg-info/
-dist/
-build/
-.eggs/
-
-# Virtual Environment
-venv/
-env/
+.pytest_cache/
 .venv/
-
-# Environment Variables (gizli tutulur)
 .env
-
-# IDE
-.vscode/
-.idea/
-*.swp
-
-# OS
-.DS_Store
-Thumbs.db
+.streamlit/
+.presentation-build/
+.publish-repo/
+*.inspect.ndjson
+*.egg-info/
+Hibrit_Kuantum_Rota_Istasyonu_Sunumu/

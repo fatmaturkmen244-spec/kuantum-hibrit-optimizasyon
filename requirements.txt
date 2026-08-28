@@ -1,9 +1,1 @@
-fastapi>=0.100.0
-uvicorn>=0.22.0
-numpy>=1.20.0
-scipy>=1.10.0
-openai>=1.0.0
-python-dotenv>=1.0.0
-azure-quantum>=0.28.0
-qiskit>=1.0.0
-qiskit-aer>=0.14.0
+.[quantum]

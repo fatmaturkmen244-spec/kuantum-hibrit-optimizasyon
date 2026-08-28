@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hibrit-kuantum-optimizasyon"
+version = "0.2.0"
+description = "Doğal dilli klasik ve Q# tabanlı hibrit kuantum rota optimizasyonu laboratuvarı"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "numpy>=1.26,<3",
+  "openai>=1.68,<3",
+  "pydantic>=2.9,<3",
+  "python-dotenv>=1.0,<2",
+  "streamlit>=1.41,<2",
+  "uvicorn[standard]>=0.30,<1",
+]
+
+[project.optional-dependencies]
+dev = ["httpx>=0.27,<1", "pytest>=8.3,<9"]
+quantum = ["qdk[azure]"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
