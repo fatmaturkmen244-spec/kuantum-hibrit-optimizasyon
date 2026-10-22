@@ -148,7 +148,7 @@
     .chart-wrap { min-height: 300px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: #071425; overflow: hidden; }
     svg { width: 100%; min-height: 270px; }
     #map { min-height: 300px; border-radius: 10px; overflow: hidden; }
-    #map[hidden], #route[hidden] { display: none; }
+    #map[hidden], #route[hidden], #map:not([hidden]) + #route { display: none; }
     .leaflet-container { font-family: inherit; }
     .leaflet-popup-content-wrapper, .leaflet-popup-tip { color: #102744; }
     .map-source { margin: 10px 2px 0; color: var(--muted); font-size: .8rem; }
