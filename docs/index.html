@@ -244,7 +244,7 @@
       <div class="wrap">
         <div class="eyebrow">Canlı web demosu</div>
         <h2>Gerçek GPS noktalarını kullan, yöntemi karşılaştır.</h2>
-        <p class="section-copy">Bu herkese açık sürüm tanınan şehirleri gerçek şehir merkezi koordinatlarıyla eşler; rotayı haritada ve kuş uçuşu kilometre cinsinden gösterir. Microsoft Q# devresi sunucu gerektirdiği için tam motor GitHub projesindedir.</p>
+        <p class="section-copy">Bu herkese açık sürüm tanınan şehirleri gerçek şehir merkezi koordinatlarıyla eşler. Azure Maps sunucusu bağlandığında aynı deney gerçek sürüş kilometresi ve süresiyle çalışır; bağlantı yoksa kuş uçuşu modu açıkça belirtilir. Microsoft Q# devresi sunucu gerektirdiği için tam motor GitHub projesindedir.</p>
 
         <div class="lab">
           <article class="card input-card">
@@ -252,7 +252,7 @@
             <textarea id="problem">İstanbul'dan başlayıp Ankara, İzmir, Antalya ve Bursa'yı ziyaret eden en kısa turu bul. Klasik yöntemlerle kuantum yöntemini karşılaştır.</textarea>
             <p class="hint">Kullanılabilen şehirler: İstanbul, Ankara, İzmir, Antalya, Bursa, Konya, Adana, Gaziantep, Trabzon, Samsun, Kayseri, Diyarbakır, Elazığ, Eskişehir. Sonuçta her şehir için doğrulanabilir GPS noktası gösterilir.</p>
             <button class="button primary full" id="solve">Cümleyi anla ve çöz</button>
-            <div class="status" id="status">Örnek hazır. Düğmeye basabilirsin.</div>
+            <div class="status" id="status">Örnek hazır. Düğmeye basabilirsin; veri kaynağı sonucu açıkça gösterilecek.</div>
             <div class="location-panel" id="locations" hidden aria-live="polite"></div>
             <div class="truth"><strong>Dürüst gösterim:</strong> Bu sayfa kuantum-esinli olasılık modelini çalıştırır. “Q# devresi çalıştı” iddiası yalnızca tam Python/QDK uygulamasında ve kanıt üretildiğinde gösterilir.</div>
           </article>
@@ -266,8 +266,8 @@
               <span class="badge" id="level">Kuantum seviyesi 1/3</span>
             </div>
             <div class="metrics">
-              <div class="metric"><span>Kuş uçuşu mesafe</span><strong id="best-distance">—</strong></div>
-              <div class="metric"><span>Referans süre*</span><strong id="best-duration">—</strong></div>
+              <div class="metric"><span id="best-distance-label">Kuş uçuşu mesafe</span><strong id="best-distance">—</strong></div>
+              <div class="metric"><span id="best-duration-label">Referans süre*</span><strong id="best-duration">—</strong></div>
               <div class="metric"><span>En iyi yöntem</span><strong id="best-method">—</strong></div>
               <div class="metric"><span>Olası tur</span><strong id="state-space">—</strong></div>
             </div>
@@ -470,6 +470,7 @@
     });
   </script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="./runtime-config.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

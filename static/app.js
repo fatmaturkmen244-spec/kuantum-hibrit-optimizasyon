@@ -202,6 +202,9 @@ async function saveConfiguration() {
         });
         
         const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.detail || "Konfigürasyon kaydedilemedi.");
+        }
         if (data.success) {
             // Re-check status
             await checkServerStatus();
@@ -210,7 +213,7 @@ async function saveConfiguration() {
             alert("Hata: " + data.message);
         }
     } catch (error) {
-        alert("Bağlantı hatası oluştu.");
+        alert("Ayarlar kaydedilemedi: " + error.message);
     } finally {
         showLoading(false);
     }

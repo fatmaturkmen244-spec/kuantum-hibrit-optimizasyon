@@ -11,10 +11,50 @@ import numpy as np
 from .models import City, RouteResult, SolverName
 
 
-def distance_matrix(cities: Sequence[City]) -> np.ndarray:
-    points = np.array([(city.x, city.y) for city in cities], dtype=float)
-    delta = points[:, None, :] - points[None, :, :]
-    return np.sqrt(np.sum(delta * delta, axis=2))
+def distance_matrix(
+    cities: Sequence[City],
+    precomputed: Sequence[Sequence[float]] | np.ndarray | None = None,
+) -> np.ndarray:
+    """Return one shared, possibly directed cost matrix for every solver.
+
+    ``precomputed`` is used for road distance or duration matrices returned by
+    Azure Maps. If omitted, legacy planar x/y coordinates preserve the original
+    educational behaviour; WGS84-only cities use a Haversine-kilometre fallback.
+    """
+    if precomputed is not None:
+        matrix = np.asarray(precomputed, dtype=float)
+        _validate_precomputed_matrix(matrix, len(cities))
+        return matrix.copy()
+
+    if all(city.x is not None and city.y is not None for city in cities):
+        points = np.array([(city.x, city.y) for city in cities], dtype=float)
+        delta = points[:, None, :] - points[None, :, :]
+        return np.sqrt(np.sum(delta * delta, axis=2))
+
+    if not all(city.location is not None for city in cities):
+        raise ValueError("Tüm şehirler aynı tür koordinatla tanımlanmalıdır.")
+    return _haversine_matrix(cities)
+
+
+def _validate_precomputed_matrix(matrix: np.ndarray, size: int) -> None:
+    if matrix.shape != (size, size):
+        raise ValueError("Önceden hesaplanan maliyet matrisi şehir sayısıyla uyumlu olmalıdır.")
+    if not np.all(np.isfinite(matrix)) or np.any(matrix < 0):
+        raise ValueError("Önceden hesaplanan maliyet matrisi sonlu ve negatif olmayan olmalıdır.")
+
+
+def _haversine_matrix(cities: Sequence[City]) -> np.ndarray:
+    latitudes = np.radians(np.array([city.location.latitude for city in cities], dtype=float))
+    longitudes = np.radians(np.array([city.location.longitude for city in cities], dtype=float))
+    delta_latitude = latitudes[:, None] - latitudes[None, :]
+    delta_longitude = longitudes[:, None] - longitudes[None, :]
+    haversine = (
+        np.sin(delta_latitude / 2) ** 2
+        + np.cos(latitudes)[:, None]
+        * np.cos(latitudes)[None, :]
+        * np.sin(delta_longitude / 2) ** 2
+    )
+    return 6_371.0088 * 2 * np.arcsin(np.minimum(1, np.sqrt(haversine)))
 
 
 def route_cost(route: Sequence[int], distances: np.ndarray) -> float:
@@ -39,10 +79,14 @@ def _result(
     )
 
 
-def solve_exact(cities: Sequence[City]) -> RouteResult:
+def solve_exact(
+    cities: Sequence[City],
+    *,
+    distances: Sequence[Sequence[float]] | np.ndarray | None = None,
+) -> RouteResult:
     """Brute-force benchmark; the first city is fixed to remove rotations."""
     started = time.perf_counter()
-    distances = distance_matrix(cities)
+    distances = distance_matrix(cities, distances)
     best_route: tuple[int, ...] | None = None
     best_cost = math.inf
     for tail in itertools.permutations(range(1, len(cities))):
@@ -62,11 +106,15 @@ def solve_exact(cities: Sequence[City]) -> RouteResult:
 
 
 def solve_simulated_annealing(
-    cities: Sequence[City], *, seed: int, iterations: int
+    cities: Sequence[City],
+    *,
+    seed: int,
+    iterations: int,
+    distances: Sequence[Sequence[float]] | np.ndarray | None = None,
 ) -> RouteResult:
     started = time.perf_counter()
     rng = random.Random(seed)
-    distances = distance_matrix(cities)
+    distances = distance_matrix(cities, distances)
     current = list(range(len(cities)))
     rng.shuffle(current)
     current_cost = route_cost(current, distances)
@@ -100,7 +148,11 @@ def solve_simulated_annealing(
 
 
 def solve_quantum_statevector(
-    cities: Sequence[City], *, seed: int, layers: int
+    cities: Sequence[City],
+    *,
+    seed: int,
+    layers: int,
+    distances: Sequence[Sequence[float]] | np.ndarray | None = None,
 ) -> RouteResult:
     """QAOA-style simulator over the feasible-tour state space.
 
@@ -109,7 +161,7 @@ def solve_quantum_statevector(
     """
     started = time.perf_counter()
     rng = np.random.default_rng(seed)
-    distances = distance_matrix(cities)
+    distances = distance_matrix(cities, distances)
     tours = np.array([(0, *tail) for tail in itertools.permutations(range(1, len(cities)))])
     costs = np.array([route_cost(route, distances) for route in tours])
     scale = max(float(np.std(costs)), 1e-9)

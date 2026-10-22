@@ -66,3 +66,45 @@ def test_turkish_natural_language_problem_is_parsed_in_mention_order() -> None:
     assert [city.name for city in problem.cities] == ["İstanbul", "Ankara", "Elazığ", "İzmir"]
     assert problem.use_quantum is True
     assert problem.parser_source in {"Azure OpenAI", "Yerel şehir sözlüğü"}
+
+
+def test_all_solvers_use_the_same_directed_road_cost_matrix() -> None:
+    road_distances = [
+        [0, 7, 2, 9],
+        [8, 0, 4, 1],
+        [3, 6, 0, 5],
+        [2, 8, 7, 0],
+    ]
+    road_durations = [
+        [0, 70, 20, 90],
+        [80, 0, 40, 10],
+        [30, 60, 0, 50],
+        [20, 80, 70, 0],
+    ]
+    response = optimize_routes(
+        OptimizationRequest(
+            cities=sample_cities(),
+            annealing_iterations=500,
+            quantum_layers=2,
+            precomputed_cost_matrix=road_distances,
+            cost_unit="meters",
+            road_distance_meters=road_distances,
+            road_duration_seconds=road_durations,
+        )
+    )
+    city_index = {city.name: index for index, city in enumerate(sample_cities())}
+    assert response.cost_unit == "meters"
+    for result in response.results:
+        indices = [city_index[name] for name in result.route]
+        expected_distance = sum(
+            road_distances[indices[index]][indices[index + 1]]
+            for index in range(len(indices) - 1)
+        )
+        expected_duration = sum(
+            road_durations[indices[index]][indices[index + 1]]
+            for index in range(len(indices) - 1)
+        )
+        assert result.distance == expected_distance
+        assert result.route_distance_meters == expected_distance
+        assert result.route_duration_seconds == expected_duration
+        assert result.cost_unit == "meters"

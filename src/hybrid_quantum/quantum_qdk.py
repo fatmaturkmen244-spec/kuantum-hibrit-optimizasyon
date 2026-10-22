@@ -136,6 +136,7 @@ def solve_qdk_qaoa(
     layers: int,
     shots: int,
     target: str | None = None,
+    distances: Sequence[Sequence[float]] | np.ndarray | None = None,
 ) -> RouteResult:
     """Kapı düzeyi QAOA devresini QDK simülatöründe veya Azure Quantum'da çalıştırır."""
     if len(cities) > 5:
@@ -145,7 +146,7 @@ def solve_qdk_qaoa(
 
     started = time.perf_counter()
     qsharp = _qsharp() if target else None
-    distances = distance_matrix(cities)
+    distances = distance_matrix(cities, distances)
     tours = [(0, *tail) for tail in itertools.permutations(range(1, len(cities)))]
     tour_costs = np.array([route_cost(route, distances) for route in tours], dtype=float)
     qubits = max(1, math.ceil(math.log2(len(tours))))

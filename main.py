@@ -1,6 +1,6 @@
 import os
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -82,9 +82,27 @@ def get_status():
         }
     }
 
+def _local_config_is_explicitly_enabled(request: Request) -> bool:
+    """Never accept cloud credentials from a public browser deployment."""
+    local_hosts = {"127.0.0.1", "::1", "localhost"}
+    client_host = request.client.host if request.client else ""
+    return (
+        os.getenv("ENABLE_LOCAL_CONFIG", "false").casefold() == "true"
+        and client_host in local_hosts
+    )
+
+
 @app.post("/api/config")
-def update_config(req: ConfigUpdateRequest):
-    """Updates the local environment variables dynamically and writes them to the .env file."""
+def update_config(req: ConfigUpdateRequest, request: Request):
+    """Development-only local configuration helper; disabled in public deployments."""
+    if not _local_config_is_explicitly_enabled(request):
+        raise HTTPException(
+            status_code=403,
+            detail=(
+                "Bu geliştirme endpoint'i kapalıdır. Gizli anahtarları public API'ye göndermeyin; "
+                "sunucu ortam değişkenleri veya Key Vault kullanın."
+            ),
+        )
     try:
         env_lines = []
         if os.path.exists(".env"):

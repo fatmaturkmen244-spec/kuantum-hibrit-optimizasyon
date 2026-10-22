@@ -22,6 +22,11 @@
 
   const EARTH_RADIUS_KM = 6371.0088;
   const REFERENCE_SPEED_KMH = 70;
+  // This URL is intentionally public: it points to a server-side proxy, never
+  // to Azure Maps directly. Credentials stay in that proxy's environment.
+  const API_BASE_URL = String(window.QUANTUM_ROUTE_CONFIG?.apiBaseUrl || "")
+    .trim()
+    .replace(/\/+$/, "");
   let routeMap;
   let routeLayer;
 
@@ -52,6 +57,42 @@
 
   function distanceMatrix(cities) {
     return cities.map(from => cities.map(to => from === to ? 0 : haversineKm(from, to)));
+  }
+
+  function isSquareNumericMatrix(matrix, size) {
+    return Array.isArray(matrix)
+      && matrix.length === size
+      && matrix.every(row => Array.isArray(row)
+        && row.length === size
+        && row.every(value => Number.isFinite(Number(value)) && Number(value) >= 0));
+  }
+
+  async function fetchRoadMatrix(cities) {
+    if (!API_BASE_URL) return null;
+    const response = await fetch(`${API_BASE_URL}/maps/route-matrix`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        locations: cities.map(city => ({
+          name: city.name,
+          point: { latitude: city.lat, longitude: city.lon }
+        })),
+        traffic: "historical"
+      })
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || "Gerçek yol servisi şu anda yanıt vermiyor.");
+    }
+    if (!isSquareNumericMatrix(payload.distance_meters, cities.length)
+      || !isSquareNumericMatrix(payload.duration_seconds, cities.length)) {
+      throw new Error("Gerçek yol servisi eksik bir matris döndürdü.");
+    }
+    return {
+      distanceKm: payload.distance_meters.map(row => row.map(value => Number(value) / 1000)),
+      durationSeconds: payload.duration_seconds.map(row => row.map(Number)),
+      traffic: payload.traffic || "historical"
+    };
   }
 
   function routeCost(route, matrix) {
@@ -150,7 +191,8 @@
     return `${value.toLocaleString("tr-TR", { maximumFractionDigits: 1 })} km`;
   }
 
-  function durationMinutes(route, matrix) {
+  function durationMinutes(route, matrix, durationSeconds = null) {
+    if (durationSeconds) return routeCost(route, durationSeconds) / 60;
     return routeCost(route, matrix) / REFERENCE_SPEED_KMH * 60;
   }
 
@@ -237,12 +279,15 @@
     return true;
   }
 
-  function renderLegs(cities, result, matrix) {
+  function renderLegs(cities, result, matrix, durationSeconds = null) {
     const legs = document.getElementById("legs");
     const closedRoute = [...result.route, result.route[0]];
     legs.innerHTML = closedRoute.slice(0, -1).map((from, index) => {
       const to = closedRoute[index + 1];
-      return `<div class="leg"><span>${index + 1}. ${cities[from].name} → ${cities[to].name}</span><strong>${formatKm(matrix[from][to])}</strong></div>`;
+      const duration = durationSeconds
+        ? ` · ${formatDuration(durationSeconds[from][to] / 60)}`
+        : "";
+      return `<div class="leg"><span>${index + 1}. ${cities[from].name} → ${cities[to].name}</span><strong>${formatKm(matrix[from][to])}${duration}</strong></div>`;
     }).join("");
   }
 
@@ -250,7 +295,7 @@
   const solveButton = previousButton.cloneNode(true);
   previousButton.replaceWith(solveButton);
 
-  solveButton.addEventListener("click", () => {
+  solveButton.addEventListener("click", async () => {
     const status = document.getElementById("status");
     let cities = parseCities(document.getElementById("problem").value);
     if (cities.length < 3) {
@@ -258,34 +303,78 @@
       status.textContent = "En az üç tanınan şehir yazmalısın.";
       return;
     }
+    const cityNotice = cities.length > 8
+      ? "Web demosu güvenli çalışma için ilk 8 şehri kullandı."
+      : `${cities.length} şehir gerçek GPS merkeziyle eşleşti.`;
     if (cities.length > 8) {
       cities = cities.slice(0, 8);
-      status.textContent = "Web demosu güvenli çalışma için ilk 8 şehri kullandı.";
-    } else {
-      status.textContent = `${cities.length} şehir gerçek GPS merkeziyle eşleşti. Üç motor çalıştırıldı.`;
     }
-    status.style.color = "var(--green)";
+    solveButton.disabled = true;
+    try {
+      let matrix = distanceMatrix(cities);
+      let durationSeconds = null;
+      let roadMode = false;
+      let roadTraffic = "historical";
 
-    const matrix = distanceMatrix(cities);
-    const results = [exact(cities, matrix), anneal(cities, matrix), quantumModel(cities, matrix)];
-    const best = results.reduce((first, second) => first.cost <= second.cost ? first : second);
-    const tours = Array.from({ length: cities.length - 1 }, (_, index) => index + 1).reduce((total, value) => total * value, 1);
-    const renderedMap = renderMap(cities, best);
-    const minutes = durationMinutes(best.route, matrix);
+      if (API_BASE_URL) {
+        status.style.color = "var(--cyan)";
+        status.textContent = `${cityNotice} Azure Maps'ten gerçek sürüş mesafesi ve süresi alınıyor...`;
+        try {
+          const road = await fetchRoadMatrix(cities);
+          if (road) {
+            matrix = road.distanceKm;
+            durationSeconds = road.durationSeconds;
+            roadTraffic = road.traffic;
+            roadMode = true;
+            status.style.color = "var(--green)";
+            status.textContent = `${cityNotice} Azure Maps gerçek sürüş matrisiyle üç motor karşılaştırıldı.`;
+          }
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : "Bilinmeyen bağlantı hatası";
+          status.style.color = "var(--amber)";
+          status.textContent = `${cityNotice} Gerçek yol verisi alınamadı; şeffaf şekilde kuş uçuşu yedeği kullanıldı. (${detail})`;
+        }
+      } else {
+        status.style.color = "var(--green)";
+        status.textContent = `${cityNotice} Üç motor kuş uçuşu GPS mesafesiyle çalıştırıldı.`;
+      }
 
-    document.getElementById("result-title").textContent = `${cities.length} şehir, ${results.length} yöntem, gerçek GPS koordinatları`;
-    document.getElementById("best-distance").textContent = formatKm(best.cost);
-    document.getElementById("best-duration").textContent = formatDuration(minutes);
-    document.getElementById("best-method").textContent = best.name;
-    document.getElementById("state-space").textContent = tours.toLocaleString("tr-TR");
-    document.getElementById("map-source").textContent = `${renderedMap ? "Harita: OpenStreetMap · " : "Harita yedek görünümü · "}Konum: şehir merkezi GPS koordinatları · Mesafe: kuş uçuşu Haversine km · Süre: ${REFERENCE_SPEED_KMH} km/sa referans hız · Gerçek sürüş ve trafik verisi değildir.`;
-    renderLocations(cities, best);
-    renderLegs(cities, best, matrix);
-    document.getElementById("methods").innerHTML = results.map(result => `
-      <div class="method ${result.cls}"><strong>${result.name}</strong>
-        <small>${formatKm(result.cost)} kuş uçuşu · ${result.ms.toFixed(2)} ms</small>
-        <small>${result.route.map(index => cities[index].name).join(" → ")} → ${cities[result.route[0]].name}</small>
-        ${result.detail ? `<small>${result.detail}</small>` : ""}
-      </div>`).join("");
+      const results = [exact(cities, matrix), anneal(cities, matrix), quantumModel(cities, matrix)];
+      const best = results.reduce((first, second) => first.cost <= second.cost ? first : second);
+      const tours = Array.from({ length: cities.length - 1 }, (_, index) => index + 1)
+        .reduce((total, value) => total * value, 1);
+      const renderedMap = renderMap(cities, best);
+      const minutes = durationMinutes(best.route, matrix, durationSeconds);
+
+      document.getElementById("result-title").textContent = roadMode
+        ? `${cities.length} şehir, ${results.length} yöntem, Azure Maps yol verisi`
+        : `${cities.length} şehir, ${results.length} yöntem, gerçek GPS koordinatları`;
+      document.getElementById("best-distance-label").textContent = roadMode
+        ? "Gerçek sürüş mesafesi"
+        : "Kuş uçuşu mesafe";
+      document.getElementById("best-duration-label").textContent = roadMode
+        ? "Tahmini sürüş süresi"
+        : "Referans süre*";
+      document.getElementById("best-distance").textContent = formatKm(best.cost);
+      document.getElementById("best-duration").textContent = formatDuration(minutes);
+      document.getElementById("best-method").textContent = best.name;
+      document.getElementById("state-space").textContent = tours.toLocaleString("tr-TR");
+      document.getElementById("map-source").textContent = roadMode
+        ? `${renderedMap ? "Harita: OpenStreetMap · " : "Harita yedek görünümü · "}Konum: şehir merkezi GPS koordinatları · Hesap: Azure Maps gerçek sürüş mesafesi ve süresi (${roadTraffic} trafik) · Rota çizgisi istasyonlar arası şematiktir.`
+        : `${renderedMap ? "Harita: OpenStreetMap · " : "Harita yedek görünümü · "}Konum: şehir merkezi GPS koordinatları · Mesafe: kuş uçuşu Haversine km · Süre: ${REFERENCE_SPEED_KMH} km/sa referans hız · Gerçek sürüş ve trafik verisi değildir.`;
+      renderLocations(cities, best);
+      renderLegs(cities, best, matrix, durationSeconds);
+      document.getElementById("methods").innerHTML = results.map(result => `
+        <div class="method ${result.cls}"><strong>${result.name}</strong>
+          <small>${formatKm(result.cost)} ${roadMode ? "gerçek sürüş" : "kuş uçuşu"} · ${result.ms.toFixed(2)} ms</small>
+          <small>${result.route.map(index => cities[index].name).join(" → ")} → ${cities[result.route[0]].name}</small>
+          ${result.detail ? `<small>${result.detail}</small>` : ""}
+        </div>`).join("");
+    } catch (error) {
+      status.style.color = "var(--red)";
+      status.textContent = `Deney tamamlanamadı: ${error instanceof Error ? error.message : "beklenmeyen hata"}`;
+    } finally {
+      solveButton.disabled = false;
+    }
   });
 })();

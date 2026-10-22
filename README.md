@@ -88,7 +88,34 @@ Arayüzde **Yazarak çöz** sekmesini açın ve örneğin şu cümleyi yazın:
 
 > İstanbul'dan başlayıp Ankara, İzmir, Antalya ve Bursa'yı ziyaret eden en kısa turu bul. Klasik yöntemlerle kuantum yöntemini karşılaştır.
 
-Web demosu, desteklenen şehirlerin gerçek şehir merkezi GPS koordinatlarını kullanır; koordinatlar ve OpenStreetMap pinleri sonuç ekranında gösterilir. Mesafe hesabı Haversine (kuş uçuşu) kilometreleridir; sonuçlar gerçek yol veya trafik mesafesi değildir.
+Web demosu, desteklenen şehirlerin gerçek şehir merkezi GPS koordinatlarını kullanır; koordinatlar ve OpenStreetMap pinleri sonuç ekranında gösterilir. Varsayılan modda mesafe hesabı Haversine (kuş uçuşu) kilometreleridir. Azure Maps proxy'si bağlandığında ise aynı demo gerçek sürüş mesafesi ve tahmini sürüş süresi matrisini kullanır; arayüz hangi kaynağın kullanıldığını açıkça yazar.
+
+## Gerçek yol verisi · Azure Maps proxy
+
+GitHub Pages statik olduğu için Azure Maps anahtarı kesinlikle `docs/` altına veya tarayıcı JavaScript'ine konmaz. Güvenli akış şöyledir:
+
+```text
+GitHub Pages → FastAPI proxy → Azure Maps Search / Route Matrix
+```
+
+Yeni API uçları:
+
+- `POST /maps/geocode`: adresi WGS84 konumuna çözer; rota için uygun nokta varsa onu tercih eder.
+- `POST /maps/route-matrix`: 2–10 konum için yönlü gerçek yol mesafesi (metre) ve süre (saniye) matrisi döndürür.
+- `POST /maps/optimize`: önce yolu hesaplar, ardından kesin, klasik, kuantum-simülatör ve istenirse Q# çözücülerinin **tamamını aynı matriste** çalıştırır.
+
+Yerelde veya Azure App Service / Container Apps üzerinde API'yi dağıtırken sunucunun güvenli ortam değişkenlerine şunları ekleyin:
+
+```text
+AZURE_MAPS_SUBSCRIPTION_KEY=...
+AZURE_MAPS_ENDPOINT=https://atlas.microsoft.com
+```
+
+Ardından yalnızca proxy URL'sini `docs/runtime-config.js` içindeki `apiBaseUrl` alanına yazın. Bu URL gizli değildir; anahtar boşta kalır ve yalnızca sunucudadır. URL boş bırakılırsa demo bozulmaz, mevcut GPS + kuş uçuşu yedeği çalışır. Public API için varsayılan CORS listesi yalnız GitHub Pages ve yerel geliştirme adreslerini kapsar; dağıtımda gerekirse `CORS_ALLOW_ORIGINS` ile açıkça genişletin.
+
+Eski yerel arayüzdeki `/api/config` yardımcı endpoint'i varsayılan olarak kapalıdır; yalnız `ENABLE_LOCAL_CONFIG=true` ile ve `localhost` üzerinde çalışır. Public dağıtımda anahtarlar her zaman ortam değişkeni, Key Vault veya yönetilen kimlik üzerinden verilmelidir.
+
+Route Matrix v2025-01-01'in GeoJSON koordinat düzeni `[longitude, latitude]` olduğundan, istemci bunu doğrular ve matrisi yanıt listesinin sırasına değil `originIndex` / `destinationIndex` alanlarına göre kurar. Varsayılan trafik modu `historical`dır; deneylerin tekrar üretilebilir kalmasını sağlar. [Azure Maps Route Matrix belgeleri](https://learn.microsoft.com/en-us/rest/api/maps/route/post-route-matrix?view=rest-maps-2026-01-01) ve [Geocoding belgeleri](https://learn.microsoft.com/en-us/rest/api/maps/search/get-geocoding?view=rest-maps-2026-01-01) ayrıntılı şemayı açıklar.
 
 ## Test
 
@@ -99,6 +126,6 @@ pytest
 ## Sonraki adımlar
 
 1. Doğal dilde problem tanımını yapılandırılmış modele çevirme
-2. Azure Maps üzerinden gerçek yol mesafesi/süre matrisi ve adres çözümleme
+2. Azure Maps'ten gelen rota geometrisiyle haritada gerçek yol çizgisini gösterme
 3. Deney geçmişini kalıcı olarak saklama ve dışa aktarma
 4. QAOA parametre optimizasyonunu ve sağlayıcıya özel transpilation'ı geliştirme

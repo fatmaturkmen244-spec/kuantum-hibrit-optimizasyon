@@ -16,7 +16,8 @@ def _local_explanation(results: list[RouteResult]) -> str:
     best = ranked[0]
     comparison = ", ".join(f"{item.solver.value}: {item.distance:.2f}" for item in ranked)
     return (
-        f"En kısa rota {best.solver.value} yöntemiyle {best.distance:.2f} birim bulundu. "
+        f"En düşük maliyetli rota {best.solver.value} yöntemiyle {best.distance:.2f} "
+        f"{best.cost_unit} bulundu. "
         f"Karşılaştırma — {comparison}."
     )
 
