@@ -88,7 +88,7 @@ Arayüzde **Yazarak çöz** sekmesini açın ve örneğin şu cümleyi yazın:
 
 > İstanbul'dan başlayıp Ankara, İzmir, Antalya ve Bursa'yı ziyaret eden en kısa turu bul. Klasik yöntemlerle kuantum yöntemini karşılaştır.
 
-Demo şehir kataloğu yaklaşık coğrafi koordinatlar kullanır; sonuçlar gerçek yol veya trafik mesafesi değildir.
+Web demosu, desteklenen şehirlerin gerçek şehir merkezi GPS koordinatlarını kullanır; koordinatlar ve OpenStreetMap pinleri sonuç ekranında gösterilir. Mesafe hesabı Haversine (kuş uçuşu) kilometreleridir; sonuçlar gerçek yol veya trafik mesafesi değildir.
 
 ## Test
 
@@ -99,6 +99,6 @@ pytest
 ## Sonraki adımlar
 
 1. Doğal dilde problem tanımını yapılandırılmış modele çevirme
-2. Harita koordinatları ve gerçek yol mesafesi matrisi
+2. Azure Maps üzerinden gerçek yol mesafesi/süre matrisi ve adres çözümleme
 3. Deney geçmişini kalıcı olarak saklama ve dışa aktarma
 4. QAOA parametre optimizasyonunu ve sağlayıcıya özel transpilation'ı geliştirme
