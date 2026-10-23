@@ -3,7 +3,19 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Doğal dilden klasik ve kuantum yöntemlerini karşılaştıran hibrit optimizasyon laboratuvarı.">
+  <meta name="description" content="Gerçek GPS referans noktaları üzerinde klasik ve kuantum yöntemlerini şeffaf biçimde karşılaştıran hibrit optimizasyon laboratuvarı.">
+  <meta name="theme-color" content="#06101f">
+  <meta property="og:locale" content="tr_TR">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Quantum Route Lab">
+  <meta property="og:title" content="Quantum Route Lab | Gerçek GPS verisi üzerinde hibrit optimizasyon">
+  <meta property="og:description" content="Aynı rota problemini klasik ve kuantum yaklaşımlarıyla, doğrulanabilir şehir merkezi GPS noktaları üzerinde karşılaştıran açık deney.">
+  <meta property="og:url" content="https://fatmaturkmen244-spec.github.io/kuantum-hibrit-optimizasyon/">
+  <meta property="og:image" content="https://i.ytimg.com/vi/JZYghIdtH5U/hqdefault.jpg">
+  <meta property="og:image:alt" content="Quantum Route Lab proje sunumu">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Quantum Route Lab | Hibrit Kuantum Optimizasyon">
+  <meta name="twitter:description" content="Gerçek GPS noktaları üzerinde klasik ve kuantum yöntemleriyle rota deneyi.">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha512-p4NxAoJBhIINfQkS0G9uY+G3JEC0wA6R8+ZP04XKcWQ+6OUFpSCe3NWosx5KYxNJPyy0mRZHI6DPD7+QAPaQ5w==" crossorigin="">
   <title>Quantum Route Lab</title>
   <style>
@@ -145,7 +157,7 @@
     .metric span { display: block; color: var(--muted); font-size: .78rem; }
     .metric strong { display: block; margin-top: 7px; font-size: 1.4rem; }
 
-    .chart-wrap { min-height: 300px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: #071425; overflow: hidden; }
+    .chart-wrap { position: relative; min-height: 300px; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: #071425; overflow: hidden; }
     svg { width: 100%; min-height: 270px; }
     #map { min-height: 300px; border-radius: 10px; overflow: hidden; }
     #map[hidden], #route[hidden], #map:not([hidden]) + #route { display: none; }
@@ -171,18 +183,19 @@
 
     .truth { margin-top: 20px; padding: 16px; border-left: 3px solid var(--violet); border-radius: 12px; color: var(--muted); background: rgba(117, 102, 255, .09); }
     .truth strong { color: var(--text); }
+    .project-note { max-width: 760px; margin: 18px 0 0; padding: 16px 18px; border-left: 3px solid var(--cyan); border-radius: 12px; color: var(--muted); background: rgba(55, 212, 245, .07); }
+    .project-note p { margin: 6px 0 0; }
+    .route-legend { position: absolute; z-index: 500; top: 24px; left: 24px; padding: 6px 10px; border: 1px solid rgba(255,255,255,.24); border-radius: 999px; color: #102744; background: rgba(255,255,255,.9); font-size: .75rem; font-weight: 800; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+    .route-legend[hidden], .share-card[hidden] { display: none; }
+    .share-card { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-top: 16px; padding: 16px; border: 1px solid rgba(55, 212, 245, .25); border-radius: 14px; background: rgba(55, 212, 245, .06); }
+    .share-card strong { display: block; }
+    .share-card p { max-width: 560px; margin: 5px 0 0; color: var(--muted); font-size: .84rem; }
 
     .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 30px; }
     .feature { min-height: 210px; padding: 24px; }
     .feature .n { color: var(--cyan); font-size: .77rem; font-weight: 850; letter-spacing: .12em; }
     .feature h3 { margin: 30px 0 12px; font-size: 1.35rem; }
     .feature p { color: var(--muted); }
-
-    .roadmap { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; margin-top: 34px; }
-    .mile { position: relative; padding: 46px 26px 20px; border-top: 1px solid var(--line); }
-    .mile::before { content: ""; position: absolute; top: -6px; left: 26px; width: 11px; height: 11px; border-radius: 50%; background: var(--violet); }
-    .mile strong { display: block; margin-bottom: 12px; }
-    .mile p { color: var(--muted); }
 
     footer { padding: 36px 0 54px; border-top: 1px solid var(--line); color: var(--muted); }
     .footer-row { display: flex; justify-content: space-between; gap: 20px; }
@@ -191,9 +204,6 @@
       .hero-grid, .lab { grid-template-columns: 1fr; }
       .orb { margin-top: 30px; }
       .feature-grid, .proof-strip { grid-template-columns: 1fr; }
-      .roadmap { grid-template-columns: 1fr; gap: 10px; }
-      .mile { border-top: 0; border-left: 1px solid var(--line); padding: 18px 24px 30px 40px; }
-      .mile::before { top: 25px; left: -6px; }
     }
     @media (max-width: 620px) {
       .nav-links a:not(.button) { display: none; }
@@ -202,7 +212,7 @@
       .location-card a { grid-column: 2; }
       .hero { padding-top: 56px; }
       h1 { font-size: 3.2rem; }
-      .result-head, .footer-row { flex-direction: column; }
+      .result-head, .footer-row, .share-card { flex-direction: column; align-items: flex-start; }
     }
   </style>
 </head>
@@ -213,7 +223,6 @@
       <div class="nav-links">
         <a href="#demo">Canlı demo</a>
         <a href="#fark">Farkı</a>
-        <a href="#yol">Yol haritası</a>
         <a class="button" href="https://github.com/fatmaturkmen244-spec/kuantum-hibrit-optimizasyon">GitHub ↗</a>
       </div>
     </nav>
@@ -229,7 +238,12 @@
           <div class="actions">
             <a class="button primary" href="#demo">Demoyu çalıştır</a>
             <a class="button" href="https://github.com/fatmaturkmen244-spec/kuantum-hibrit-optimizasyon">Q# kodunu incele</a>
+            <a class="button" href="https://youtu.be/JZYghIdtH5U" target="_blank" rel="noopener noreferrer">2 dakikalık sunumu izle ↗</a>
           </div>
+          <aside class="project-note">
+            <div class="eyebrow">Geliştirme notu</div>
+            <p>Kuantumu sihirli bir kutu gibi göstermek yerine, aynı problemi gerçek konum verisi üzerinde tekrar üretilebilen açık bir deney hâline getirmek istedim.</p>
+          </aside>
           <div class="proof-strip" aria-label="Kuantum kanıt seviyeleri">
             <div class="proof-step active"><strong>1 · Kuantum modeli</strong>Tarayıcıda olasılık simülasyonu</div>
             <div class="proof-step"><strong>2 · Microsoft Q#</strong>Tam uygulamada kapı ve ölçüm</div>
@@ -244,17 +258,17 @@
       <div class="wrap">
         <div class="eyebrow">Canlı web demosu</div>
         <h2>Gerçek GPS noktalarını kullan, yöntemi karşılaştır.</h2>
-        <p class="section-copy">Bu herkese açık sürüm tanınan şehirleri gerçek şehir merkezi koordinatlarıyla eşler. Azure Maps sunucusu bağlandığında aynı deney gerçek sürüş kilometresi ve süresiyle çalışır; bağlantı yoksa kuş uçuşu modu açıkça belirtilir. Microsoft Q# devresi sunucu gerektirdiği için tam motor GitHub projesindedir.</p>
+        <p class="section-copy">Bu herkese açık sürüm 14 şehri WGS84 şehir merkezi GPS referans noktalarıyla eşler. Her konum sonucu OpenStreetMap'te doğrulanabilir. Azure Maps sunucusu bağlandığında aynı deney gerçek sürüş kilometresi ve süresiyle çalışır; bağlantı yoksa kuş uçuşu modu açıkça belirtilir.</p>
 
         <div class="lab">
           <article class="card input-card">
             <label for="problem">Çözmek istediğin problem</label>
             <textarea id="problem">İstanbul'dan başlayıp Ankara, İzmir, Antalya ve Bursa'yı ziyaret eden en kısa turu bul. Klasik yöntemlerle kuantum yöntemini karşılaştır.</textarea>
-            <p class="hint">Kullanılabilen şehirler: İstanbul, Ankara, İzmir, Antalya, Bursa, Konya, Adana, Gaziantep, Trabzon, Samsun, Kayseri, Diyarbakır, Elazığ, Eskişehir. Sonuçta her şehir için doğrulanabilir GPS noktası gösterilir.</p>
+            <p class="hint">Kullanılabilen şehirler: İstanbul, Ankara, İzmir, Antalya, Bursa, Konya, Adana, Gaziantep, Trabzon, Samsun, Kayseri, Diyarbakır, Elazığ, Eskişehir. Her sonuçta şehir merkezi referansı, enlem–boylam ve OpenStreetMap bağlantısı görünür.</p>
             <button class="button primary full" id="solve">Cümleyi anla ve çöz</button>
             <div class="status" id="status">Örnek hazır. Düğmeye basabilirsin; veri kaynağı sonucu açıkça gösterilecek.</div>
             <div class="location-panel" id="locations" hidden aria-live="polite"></div>
-            <div class="truth"><strong>Dürüst gösterim:</strong> Bu sayfa kuantum-esinli olasılık modelini çalıştırır. “Q# devresi çalıştı” iddiası yalnızca tam Python/QDK uygulamasında ve kanıt üretildiğinde gösterilir.</div>
+            <div class="truth"><strong>Açık gösterim:</strong> Konumlar doğrulanabilir şehir merkezi GPS referanslarıdır; haritadaki çizgi istasyonları şematik olarak bağlar. Bu sayfa kuantum-esinli olasılık modelini çalıştırır. “Q# devresi çalıştı” iddiası yalnızca tam Python/QDK uygulamasında ve kanıt üretildiğinde gösterilir.</div>
           </article>
 
           <article class="card results-card" aria-live="polite">
@@ -271,10 +285,18 @@
               <div class="metric"><span>En iyi yöntem</span><strong id="best-method">—</strong></div>
               <div class="metric"><span>Olası tur</span><strong id="state-space">—</strong></div>
             </div>
-            <div class="chart-wrap"><div id="map" hidden aria-label="Seçilen şehirler ve önerilen rota haritası"></div><svg id="route" viewBox="0 0 720 300" role="img" aria-label="En iyi rota çizimi"></svg></div>
+            <div class="chart-wrap"><span class="route-legend" id="route-legend" hidden>Şematik istasyon bağlantısı</span><div id="map" hidden aria-label="Seçilen şehirler ve önerilen rota haritası"></div><svg id="route" viewBox="0 0 720 300" role="img" aria-label="En iyi rota çizimi"></svg></div>
             <div class="map-source" id="map-source">Rota çalıştırıldığında seçilen şehir merkezleri ve konum kaynağı burada gösterilir.</div>
             <div class="method-grid" id="methods"></div>
             <div class="leg-list" id="legs"></div>
+            <div class="share-card" id="share-card" hidden>
+              <div>
+                <div class="eyebrow">Paylaşım özeti</div>
+                <strong>Sonucu LinkedIn için hazırla</strong>
+                <p id="share-preview">Deney tamamlandığında kısa ve veri kaynağını açıkça belirten bir paylaşım özeti burada hazırlanır.</p>
+              </div>
+              <button class="button" id="copy-summary" type="button">Özeti kopyala</button>
+            </div>
           </article>
         </div>
       </div>
@@ -293,17 +315,6 @@
       </div>
     </section>
 
-    <section id="yol">
-      <div class="wrap">
-        <div class="eyebrow">Doğal dil + NP-zor problemler</div>
-        <h2>Rota bugün; daha geniş problem ailesi sırada.</h2>
-        <div class="roadmap">
-          <div class="mile"><strong>Bugün</strong><p>Türkçe cümleden şehir çıkarma, TSP çözümü ve klasik–kuantum karşılaştırması.</p></div>
-          <div class="mile"><strong>Sonraki sürüm</strong><p>Ortak QUBO katmanı ile Max-Cut, çanta problemi ve çizelgeleme örnekleri.</p></div>
-          <div class="mile"><strong>Ürünleşme</strong><p>Gerçek mesafeler, kapasite ve zaman pencereleri; Azure Quantum donanım benchmark’ı.</p></div>
-        </div>
-      </div>
-    </section>
   </main>
 
   <footer>
@@ -313,162 +324,6 @@
     </div>
   </footer>
 
-  <script>
-    const CITIES = {
-      "istanbul": [0.0, 4.0, "İstanbul"], "ankara": [4.0, 3.0, "Ankara"],
-      "izmir": [1.0, 0.0, "İzmir"], "antalya": [4.0, 0.0, "Antalya"],
-      "bursa": [1.0, 3.0, "Bursa"], "konya": [4.1, 1.5, "Konya"],
-      "adana": [5.8, 1.2, "Adana"], "gaziantep": [7.0, 1.5, "Gaziantep"],
-      "trabzon": [7.2, 5.4, "Trabzon"], "samsun": [5.8, 5.1, "Samsun"],
-      "kayseri": [5.2, 2.7, "Kayseri"], "diyarbakir": [7.6, 2.8, "Diyarbakır"],
-      "elazig": [6.7, 3.2, "Elazığ"], "eskisehir": [2.8, 3.2, "Eskişehir"]
-    };
-
-    const normalize = value => value.toLocaleLowerCase("tr-TR")
-      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-      .replaceAll("ı", "i").replaceAll("ş", "s").replaceAll("ğ", "g")
-      .replaceAll("ü", "u").replaceAll("ö", "o").replaceAll("ç", "c");
-
-    function permutations(values) {
-      if (values.length <= 1) return [values.slice()];
-      const result = [];
-      values.forEach((value, index) => {
-        const rest = values.slice(0, index).concat(values.slice(index + 1));
-        permutations(rest).forEach(p => result.push([value, ...p]));
-      });
-      return result;
-    }
-
-    function distance(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
-    function routeCost(route, cities) {
-      return route.reduce((sum, current, i) => sum + distance(cities[current], cities[route[(i + 1) % route.length]]), 0);
-    }
-
-    function exact(cities) {
-      const started = performance.now();
-      const tails = permutations(Array.from({ length: cities.length - 1 }, (_, i) => i + 1));
-      let best = null, bestCost = Infinity;
-      tails.forEach(tail => {
-        const route = [0, ...tail];
-        const cost = routeCost(route, cities);
-        if (cost < bestCost) { best = route; bestCost = cost; }
-      });
-      return { name: "Kesin kontrol", route: best, cost: bestCost, ms: performance.now() - started, cls: "exact" };
-    }
-
-    function anneal(cities) {
-      const started = performance.now();
-      let current = Array.from({ length: cities.length }, (_, i) => i);
-      for (let i = current.length - 1; i > 1; i--) {
-        const j = 1 + Math.floor(Math.random() * i);
-        [current[i], current[j]] = [current[j], current[i]];
-      }
-      let currentCost = routeCost(current, cities), best = current.slice(), bestCost = currentCost;
-      let temperature = 5;
-      for (let step = 0; step < 5000; step++) {
-        const i = 1 + Math.floor(Math.random() * (cities.length - 1));
-        const j = 1 + Math.floor(Math.random() * (cities.length - 1));
-        if (i === j) continue;
-        const candidate = current.slice();
-        [candidate[i], candidate[j]] = [candidate[j], candidate[i]];
-        const cost = routeCost(candidate, cities), delta = cost - currentCost;
-        if (delta < 0 || Math.random() < Math.exp(-delta / Math.max(temperature, .0001))) {
-          current = candidate; currentCost = cost;
-          if (cost < bestCost) { best = candidate.slice(); bestCost = cost; }
-        }
-        temperature *= .9985;
-      }
-      return { name: "Klasik hızlı", route: best, cost: bestCost, ms: performance.now() - started, cls: "fast" };
-    }
-
-    function quantumModel(cities) {
-      const started = performance.now();
-      const tours = permutations(Array.from({ length: cities.length - 1 }, (_, i) => i + 1)).map(tail => [0, ...tail]);
-      const costs = tours.map(route => routeCost(route, cities));
-      const min = Math.min(...costs), max = Math.max(...costs), temp = Math.max((max - min) / 4, .05);
-      const amplitudes = costs.map(cost => Math.exp(-(cost - min) / temp));
-      const total = amplitudes.reduce((a, b) => a + b, 0);
-      const probabilities = amplitudes.map(value => value / total);
-      let bestIndex = 0;
-      for (let shot = 0; shot < 512; shot++) {
-        let pick = Math.random(), cumulative = 0;
-        for (let i = 0; i < probabilities.length; i++) {
-          cumulative += probabilities[i];
-          if (pick <= cumulative) {
-            if (costs[i] < costs[bestIndex]) bestIndex = i;
-            break;
-          }
-        }
-      }
-      const peak = Math.max(...probabilities);
-      return {
-        name: "Kuantum modeli", route: tours[bestIndex], cost: costs[bestIndex],
-        ms: performance.now() - started, cls: "quantum",
-        detail: `En güçlü olasılık rastgele seçime göre ${(peak * tours.length).toFixed(2)}× güçlendirildi.`
-      };
-    }
-
-    function parseCities(text) {
-      const source = normalize(text);
-      const found = [];
-      Object.entries(CITIES).forEach(([key, [x, y, label]]) => {
-        if (source.includes(key)) found.push({ key, x, y, name: label });
-      });
-      return found;
-    }
-
-    function drawRoute(cities, result) {
-      const svg = document.getElementById("route");
-      const width = 720, height = 300, pad = 42;
-      const xs = cities.map(c => c.x), ys = cities.map(c => c.y);
-      const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-      const sx = x => pad + (x - minX) / Math.max(maxX - minX, 1) * (width - 2 * pad);
-      const sy = y => height - pad - (y - minY) / Math.max(maxY - minY, 1) * (height - 2 * pad);
-      const closed = [...result.route, result.route[0]];
-      const points = closed.map(index => `${sx(cities[index].x)},${sy(cities[index].y)}`).join(" ");
-      const nodes = cities.map((city, i) => `
-        <circle cx="${sx(city.x)}" cy="${sy(city.y)}" r="9" fill="#7566ff" stroke="#fff" stroke-width="2"/>
-        <text x="${sx(city.x)}" y="${sy(city.y) - 17}" fill="#eaf0ff" font-size="13" text-anchor="middle">${city.name}</text>`).join("");
-      svg.innerHTML = `<polyline points="${points}" fill="none" stroke="#37d4f5" stroke-width="4" stroke-linejoin="round"/>${nodes}`;
-    }
-
-    function formatRoute(result, cities) {
-      return [...result.route, result.route[0]].map(index => cities[index].name).join(" → ");
-    }
-
-    document.getElementById("solve").addEventListener("click", () => {
-      const status = document.getElementById("status");
-      let cities = parseCities(document.getElementById("problem").value);
-      if (cities.length < 3) {
-        status.style.color = "var(--red)";
-        status.textContent = "En az üç tanınan şehir yazmalısın.";
-        return;
-      }
-      if (cities.length > 8) {
-        cities = cities.slice(0, 8);
-        status.textContent = "Web demosu güvenli çalışma için ilk 8 şehri kullandı.";
-      } else {
-        status.textContent = `${cities.length} şehir anlaşıldı. Üç motor çalıştırıldı.`;
-      }
-      status.style.color = "var(--green)";
-
-      const results = [exact(cities), anneal(cities), quantumModel(cities)];
-      const best = results.reduce((a, b) => a.cost <= b.cost ? a : b);
-      const tours = results[0].route ? Array.from({ length: cities.length - 1 }, (_, i) => i + 1).reduce((a, b) => a * b, 1) : 0;
-
-      document.getElementById("result-title").textContent = `${results.length} yöntem karşılaştırıldı`;
-      document.getElementById("best-distance").textContent = best.cost.toFixed(3);
-      document.getElementById("best-method").textContent = best.name;
-      document.getElementById("state-space").textContent = tours.toLocaleString("tr-TR");
-      drawRoute(cities, best);
-      document.getElementById("methods").innerHTML = results.map(result => `
-        <div class="method ${result.cls}"><strong>${result.name}</strong>
-          <small>${result.cost.toFixed(3)} mesafe · ${result.ms.toFixed(2)} ms</small>
-          <small>${formatRoute(result, cities)}</small>
-          ${result.detail ? `<small>${result.detail}</small>` : ""}
-        </div>`).join("");
-    });
-  </script>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="./runtime-config.js"></script>
   <script src="./app.js"></script>

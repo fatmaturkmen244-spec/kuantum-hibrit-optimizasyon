@@ -1,5 +1,8 @@
+import re
+from pathlib import Path
+
 from hybrid_quantum.models import City, OptimizationRequest, SolverName
-from hybrid_quantum.natural_language import parse_route_problem
+from hybrid_quantum.natural_language import CITY_CATALOG, parse_route_problem
 from hybrid_quantum.service import optimize_routes
 from hybrid_quantum.solvers import distance_matrix, route_cost
 
@@ -66,6 +69,23 @@ def test_turkish_natural_language_problem_is_parsed_in_mention_order() -> None:
     assert [city.name for city in problem.cities] == ["İstanbul", "Ankara", "Elazığ", "İzmir"]
     assert problem.use_quantum is True
     assert problem.parser_source in {"Azure OpenAI", "Yerel şehir sözlüğü"}
+
+
+def test_published_gps_catalog_matches_the_backend_catalog() -> None:
+    source = (Path(__file__).parents[1] / "docs" / "app.js").read_text(encoding="utf-8")
+    entries = re.findall(
+        r'^\s*(\w+): \{ lat: ([0-9.]+), lon: ([0-9.]+), name: "([^"]+)"',
+        source,
+        flags=re.MULTILINE,
+    )
+    published = {
+        key: (name, float(longitude), float(latitude))
+        for key, latitude, longitude, name in entries
+    }
+
+    assert set(published) == set(CITY_CATALOG)
+    assert published == CITY_CATALOG
+    assert all(35 <= latitude <= 42 and 26 <= longitude <= 42 for _, longitude, latitude in published.values())
 
 
 def test_all_solvers_use_the_same_directed_road_cost_matrix() -> None:

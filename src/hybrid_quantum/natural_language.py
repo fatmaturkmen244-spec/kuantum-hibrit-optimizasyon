@@ -14,21 +14,22 @@ from .models import City
 load_dotenv()
 
 
-# Eğitim demosu için yaklaşık coğrafi koordinatlar kullanılır; yol mesafesi değildir.
+# Eğitim demosu için WGS84 şehir merkezi referans koordinatları kullanılır; yol mesafesi değildir.
+# Bu liste, yayımlanan web demosundaki GPS_CITIES kataloğuyla eşit tutulur.
 CITY_CATALOG: dict[str, tuple[str, float, float]] = {
     "istanbul": ("İstanbul", 28.9784, 41.0082),
     "ankara": ("Ankara", 32.8597, 39.9334),
     "izmir": ("İzmir", 27.1428, 38.4237),
     "antalya": ("Antalya", 30.7133, 36.8969),
     "bursa": ("Bursa", 29.0600, 40.1950),
-    "konya": ("Konya", 32.4846, 37.8746),
+    "konya": ("Konya", 32.4846, 37.8714),
     "adana": ("Adana", 35.3213, 37.0000),
-    "gaziantep": ("Gaziantep", 37.3781, 37.0662),
-    "trabzon": ("Trabzon", 39.7168, 41.0027),
-    "samsun": ("Samsun", 36.3361, 41.2867),
-    "kayseri": ("Kayseri", 35.4826, 38.7205),
+    "gaziantep": ("Gaziantep", 37.3833, 37.0662),
+    "trabzon": ("Trabzon", 39.7178, 41.0015),
+    "samsun": ("Samsun", 36.3300, 41.2867),
+    "kayseri": ("Kayseri", 35.4875, 38.7225),
     "diyarbakir": ("Diyarbakır", 40.2306, 37.9144),
-    "elazig": ("Elazığ", 39.2264, 38.6743),
+    "elazig": ("Elazığ", 39.2264, 38.6810),
     "eskisehir": ("Eskişehir", 30.5256, 39.7667),
 }
 

@@ -6,6 +6,7 @@ Microsoft Azure OpenAI, Microsoft QDK ve Azure Quantum entegrasyonuna hazır; do
 
 - **Herkese açık web demosu:** https://fatmaturkmen244-spec.github.io/kuantum-hibrit-optimizasyon/
 - **Sunum:** [Quantum_Route_Lab_Sunum_v2.pptx](Quantum_Route_Lab_Sunum_v2.pptx)
+- **2 dakikalık proje videosu:** https://youtu.be/JZYghIdtH5U
 
 Web demosu tarayıcı içinde kesin, klasik hızlı ve kuantum-esinli olasılık modelini çalıştırır. Microsoft Q# ve Azure Quantum özellikleri, Python/QDK tabanlı tam uygulamada çalışır; arayüz bu seviyeleri birbirinden açıkça ayırır.
 
@@ -88,7 +89,7 @@ Arayüzde **Yazarak çöz** sekmesini açın ve örneğin şu cümleyi yazın:
 
 > İstanbul'dan başlayıp Ankara, İzmir, Antalya ve Bursa'yı ziyaret eden en kısa turu bul. Klasik yöntemlerle kuantum yöntemini karşılaştır.
 
-Web demosu, desteklenen şehirlerin gerçek şehir merkezi GPS koordinatlarını kullanır; koordinatlar ve OpenStreetMap pinleri sonuç ekranında gösterilir. Varsayılan modda mesafe hesabı Haversine (kuş uçuşu) kilometreleridir. Azure Maps proxy'si bağlandığında ise aynı demo gerçek sürüş mesafesi ve tahmini sürüş süresi matrisini kullanır; arayüz hangi kaynağın kullanıldığını açıkça yazar.
+Web demosu, desteklenen 14 şehrin WGS84 şehir merkezi GPS referans noktalarını kullanır; koordinatlar ve OpenStreetMap pinleri sonuç ekranında gösterilir. Büyük şehirlerde tek bir evrensel merkez olmadığı için bu noktalar kapı/adres değil, doğrulanabilir şehir merkezi referanslarıdır. Varsayılan modda mesafe hesabı Haversine (kuş uçuşu) kilometreleridir. Azure Maps proxy'si bağlandığında ise aynı demo gerçek sürüş mesafesi ve tahmini sürüş süresi matrisini kullanır; arayüz hangi kaynağın kullanıldığını açıkça yazar.
 
 ## Gerçek yol verisi · Azure Maps proxy
 

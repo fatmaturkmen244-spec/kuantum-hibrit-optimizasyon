@@ -1,23 +1,25 @@
 (() => {
   "use strict";
 
-  // Şehir merkezleri için WGS84 (latitude/longitude) koordinatları.
+  // Şehir merkezleri için WGS84 (latitude/longitude) referans koordinatları.
   // Bu katalog, dışarıya API anahtarı vermeden net konum gösteren güvenli web demo katmanıdır.
+  // Büyük şehirlerde tek bir evrensel merkez noktası olmadığı için bunlar kapı/adres değil,
+  // kullanıcı tarafından OpenStreetMap üzerinde doğrulanabilen şehir merkezi referanslarıdır.
   const GPS_CITIES = {
-    istanbul: { lat: 41.0082, lon: 28.9784, name: "İstanbul", address: "Fatih, İstanbul" },
-    ankara: { lat: 39.9334, lon: 32.8597, name: "Ankara", address: "Çankaya, Ankara" },
-    izmir: { lat: 38.4237, lon: 27.1428, name: "İzmir", address: "Konak, İzmir" },
-    antalya: { lat: 36.8969, lon: 30.7133, name: "Antalya", address: "Muratpaşa, Antalya" },
-    bursa: { lat: 40.1950, lon: 29.0600, name: "Bursa", address: "Osmangazi, Bursa" },
-    konya: { lat: 37.8714, lon: 32.4846, name: "Konya", address: "Selçuklu, Konya" },
-    adana: { lat: 37.0000, lon: 35.3213, name: "Adana", address: "Seyhan, Adana" },
-    gaziantep: { lat: 37.0662, lon: 37.3833, name: "Gaziantep", address: "Şahinbey, Gaziantep" },
-    trabzon: { lat: 41.0015, lon: 39.7178, name: "Trabzon", address: "Ortahisar, Trabzon" },
-    samsun: { lat: 41.2867, lon: 36.3300, name: "Samsun", address: "İlkadım, Samsun" },
-    kayseri: { lat: 38.7225, lon: 35.4875, name: "Kayseri", address: "Melikgazi, Kayseri" },
-    diyarbakir: { lat: 37.9144, lon: 40.2306, name: "Diyarbakır", address: "Sur, Diyarbakır" },
-    elazig: { lat: 38.6810, lon: 39.2264, name: "Elazığ", address: "Elazığ Merkez" },
-    eskisehir: { lat: 39.7667, lon: 30.5256, name: "Eskişehir", address: "Odunpazarı, Eskişehir" }
+    istanbul: { lat: 41.0082, lon: 28.9784, name: "İstanbul", reference: "Fatih şehir merkezi" },
+    ankara: { lat: 39.9334, lon: 32.8597, name: "Ankara", reference: "Çankaya şehir merkezi" },
+    izmir: { lat: 38.4237, lon: 27.1428, name: "İzmir", reference: "Konak şehir merkezi" },
+    antalya: { lat: 36.8969, lon: 30.7133, name: "Antalya", reference: "Muratpaşa şehir merkezi" },
+    bursa: { lat: 40.1950, lon: 29.0600, name: "Bursa", reference: "Osmangazi şehir merkezi" },
+    konya: { lat: 37.8714, lon: 32.4846, name: "Konya", reference: "Selçuklu şehir merkezi" },
+    adana: { lat: 37.0000, lon: 35.3213, name: "Adana", reference: "Seyhan şehir merkezi" },
+    gaziantep: { lat: 37.0662, lon: 37.3833, name: "Gaziantep", reference: "Şahinbey şehir merkezi" },
+    trabzon: { lat: 41.0015, lon: 39.7178, name: "Trabzon", reference: "Ortahisar şehir merkezi" },
+    samsun: { lat: 41.2867, lon: 36.3300, name: "Samsun", reference: "İlkadım şehir merkezi" },
+    kayseri: { lat: 38.7225, lon: 35.4875, name: "Kayseri", reference: "Melikgazi şehir merkezi" },
+    diyarbakir: { lat: 37.9144, lon: 40.2306, name: "Diyarbakır", reference: "Sur şehir merkezi" },
+    elazig: { lat: 38.6810, lon: 39.2264, name: "Elazığ", reference: "Elazığ merkez" },
+    eskisehir: { lat: 39.7667, lon: 30.5256, name: "Eskişehir", reference: "Odunpazarı şehir merkezi" }
   };
 
   const EARTH_RADIUS_KM = 6371.0088;
@@ -29,6 +31,7 @@
     .replace(/\/+$/, "");
   let routeMap;
   let routeLayer;
+  let latestShareSummary = "";
 
   const normalize = value => value.toLocaleLowerCase("tr-TR")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -213,7 +216,7 @@
       const city = cities[cityIndex];
       return `<article class="location-card">
         <span class="location-order">${order + 1}</span>
-        <div><strong>${city.name}</strong><span>${city.address} · ${city.lat.toFixed(4)}° N, ${city.lon.toFixed(4)}° E</span></div>
+        <div><strong>${city.name}</strong><span>WGS84 · ${city.reference} · ${city.lat.toFixed(4)}° N, ${city.lon.toFixed(4)}° E</span></div>
         <a href="${osmLink(city)}" target="_blank" rel="noopener noreferrer">Haritada aç ↗</a>
       </article>`;
     }).join("");
@@ -241,6 +244,7 @@
     svg.innerHTML = `<polyline points="${points}" fill="none" stroke="#37d4f5" stroke-width="4" stroke-linejoin="round"/>${nodes}`;
     svg.hidden = false;
     document.getElementById("map").hidden = true;
+    document.getElementById("route-legend").hidden = false;
     return false;
   }
 
@@ -250,6 +254,7 @@
     const svg = document.getElementById("route");
     mapHost.hidden = false;
     svg.hidden = true;
+    document.getElementById("route-legend").hidden = false;
     if (!routeMap) {
       routeMap = window.L.map(mapHost, { scrollWheelZoom: false, zoomControl: true });
       window.L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -271,7 +276,7 @@
         fillOpacity: 1
       });
       marker.bindTooltip(`${order + 1}. ${city.name}`, { direction: "top", offset: [0, -8] });
-      marker.bindPopup(`<strong>${order + 1}. ${city.name}</strong><br>${city.address}<br>${city.lat.toFixed(4)}° N, ${city.lon.toFixed(4)}° E<br><a href="${osmLink(city)}" target="_blank" rel="noopener noreferrer">OpenStreetMap'te aç ↗</a>`);
+      marker.bindPopup(`<strong>${order + 1}. ${city.name}</strong><br>WGS84 şehir merkezi · ${city.reference}<br>${city.lat.toFixed(4)}° N, ${city.lon.toFixed(4)}° E<br><a href="${osmLink(city)}" target="_blank" rel="noopener noreferrer">OpenStreetMap'te aç ↗</a>`);
       routeLayer.addLayer(marker);
     });
     routeMap.fitBounds(window.L.latLngBounds(points), { padding: [28, 28], maxZoom: 7 });
@@ -291,12 +296,67 @@
     }).join("");
   }
 
+  function routeNames(cities, result) {
+    return [...result.route, result.route[0]].map(index => cities[index].name).join(" → ");
+  }
+
+  function buildShareSummary(cities, result, roadMode, minutes) {
+    const dataMode = roadMode
+      ? "Azure Maps gerçek sürüş mesafesi ve süre verisi"
+      : "WGS84 şehir merkezi GPS referanslarıyla kuş uçuşu Haversine hesabı";
+    const durationLabel = roadMode ? "Tahmini sürüş süresi" : "Referans süre";
+    return [
+      "Quantum Route Lab üzerinde yeni bir rota deneyi yaptım.",
+      "",
+      `Şehirler: ${cities.map(city => city.name).join(", ")}`,
+      `En iyi rota: ${routeNames(cities, result)}`,
+      `Mesafe: ${formatKm(result.cost)} · ${durationLabel}: ${formatDuration(minutes)}`,
+      `Veri modu: ${dataMode}.`,
+      "",
+      "Kuantum optimizasyonunu bir iddia olarak değil, klasik yöntemlerle aynı veri üzerinde karşılaştırılabilen açık bir deney olarak tasarlıyorum.",
+      "#QuantumComputing #AzureQuantum #Optimization"
+    ].join("\n");
+  }
+
+  function showShareSummary(summary, preview) {
+    latestShareSummary = summary;
+    document.getElementById("share-preview").textContent = preview;
+    document.getElementById("share-card").hidden = false;
+  }
+
+  async function copyShareSummary(button) {
+    if (!latestShareSummary) return;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(latestShareSummary);
+      } else {
+        const fallback = document.createElement("textarea");
+        fallback.value = latestShareSummary;
+        fallback.style.position = "fixed";
+        fallback.style.opacity = "0";
+        document.body.appendChild(fallback);
+        fallback.select();
+        const copied = document.execCommand("copy");
+        fallback.remove();
+        if (!copied) throw new Error("Tarayıcı kopyalama isteğini engelledi.");
+      }
+      button.textContent = "Kopyalandı ✓";
+      window.setTimeout(() => { button.textContent = "Özeti kopyala"; }, 2200);
+    } catch {
+      button.textContent = "Kopyalanamadı";
+      window.setTimeout(() => { button.textContent = "Özeti kopyala"; }, 2200);
+    }
+  }
+
   const previousButton = document.getElementById("solve");
   const solveButton = previousButton.cloneNode(true);
   previousButton.replaceWith(solveButton);
+  const copySummaryButton = document.getElementById("copy-summary");
+  copySummaryButton.addEventListener("click", () => copyShareSummary(copySummaryButton));
 
   solveButton.addEventListener("click", async () => {
     const status = document.getElementById("status");
+    document.getElementById("share-card").hidden = true;
     let cities = parseCities(document.getElementById("problem").value);
     if (cities.length < 3) {
       status.style.color = "var(--red)";
@@ -305,7 +365,7 @@
     }
     const cityNotice = cities.length > 8
       ? "Web demosu güvenli çalışma için ilk 8 şehri kullandı."
-      : `${cities.length} şehir gerçek GPS merkeziyle eşleşti.`;
+      : `${cities.length} şehir WGS84 şehir merkezi GPS referansıyla eşleşti.`;
     if (cities.length > 8) {
       cities = cities.slice(0, 8);
     }
@@ -348,7 +408,7 @@
 
       document.getElementById("result-title").textContent = roadMode
         ? `${cities.length} şehir, ${results.length} yöntem, Azure Maps yol verisi`
-        : `${cities.length} şehir, ${results.length} yöntem, gerçek GPS koordinatları`;
+        : `${cities.length} şehir, ${results.length} yöntem, doğrulanabilir GPS noktaları`;
       document.getElementById("best-distance-label").textContent = roadMode
         ? "Gerçek sürüş mesafesi"
         : "Kuş uçuşu mesafe";
@@ -360,10 +420,15 @@
       document.getElementById("best-method").textContent = best.name;
       document.getElementById("state-space").textContent = tours.toLocaleString("tr-TR");
       document.getElementById("map-source").textContent = roadMode
-        ? `${renderedMap ? "Harita: OpenStreetMap · " : "Harita yedek görünümü · "}Konum: şehir merkezi GPS koordinatları · Hesap: Azure Maps gerçek sürüş mesafesi ve süresi (${roadTraffic} trafik) · Rota çizgisi istasyonlar arası şematiktir.`
-        : `${renderedMap ? "Harita: OpenStreetMap · " : "Harita yedek görünümü · "}Konum: şehir merkezi GPS koordinatları · Mesafe: kuş uçuşu Haversine km · Süre: ${REFERENCE_SPEED_KMH} km/sa referans hız · Gerçek sürüş ve trafik verisi değildir.`;
+        ? `${renderedMap ? "Harita: OpenStreetMap · " : "Harita yedek görünümü · "}Konum: WGS84 şehir merkezi referansları · Hesap: Azure Maps gerçek sürüş mesafesi ve süresi (${roadTraffic} trafik) · Çizgi istasyonlar arası şematiktir.`
+        : `${renderedMap ? "Harita: OpenStreetMap · " : "Harita yedek görünümü · "}Konum: WGS84 şehir merkezi referansları (her nokta OpenStreetMap'te açılabilir) · Mesafe: kuş uçuşu Haversine km · Süre: ${REFERENCE_SPEED_KMH} km/sa referans hız · Gerçek sürüş ve trafik verisi değildir.`;
       renderLocations(cities, best);
       renderLegs(cities, best, matrix, durationSeconds);
+      const shareSummary = buildShareSummary(cities, best, roadMode, minutes);
+      showShareSummary(
+        shareSummary,
+        `${best.name} ile ${formatKm(best.cost)} · ${roadMode ? "Azure Maps gerçek sürüş verisi" : "WGS84 GPS + kuş uçuşu hesabı"}`
+      );
       document.getElementById("methods").innerHTML = results.map(result => `
         <div class="method ${result.cls}"><strong>${result.name}</strong>
           <small>${formatKm(result.cost)} ${roadMode ? "gerçek sürüş" : "kuş uçuşu"} · ${result.ms.toFixed(2)} ms</small>
