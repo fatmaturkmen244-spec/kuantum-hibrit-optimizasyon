@@ -51,7 +51,7 @@ class LLMOrchestrator:
         Sends natural language optimization problem to GPT and retrieves the QUBO formulation.
         """
         if not self.is_configured or not self.client:
-            # Fallback mock formulation for demonstration if API is not configured
+            # Fallback local formulation when the API is not configured.
             return self._mock_formulation(problem_description, num_variables)
 
         system_prompt = f"""You are an expert Quantum Computing and Optimization AI.

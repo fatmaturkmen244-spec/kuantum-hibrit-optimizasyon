@@ -60,7 +60,7 @@ def optimize_routes(request: OptimizationRequest) -> OptimizationResponse:
             distances=shared_distances,
         ),
     ]
-    # Exact factorial search is kept to a safe demo size.
+    # Exact factorial search is kept to a safe interactive size.
     if len(request.cities) <= 9:
         results.insert(0, solve_exact(request.cities, distances=shared_distances))
 

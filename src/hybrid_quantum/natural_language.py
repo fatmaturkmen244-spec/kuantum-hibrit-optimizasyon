@@ -14,8 +14,8 @@ from .models import City
 load_dotenv()
 
 
-# Eğitim demosu için WGS84 şehir merkezi referans koordinatları kullanılır; yol mesafesi değildir.
-# Bu liste, yayımlanan web demosundaki GPS_CITIES kataloğuyla eşit tutulur.
+# Eğitim laboratuvarı için WGS84 şehir merkezi referans koordinatları kullanılır; yol mesafesi değildir.
+# Bu liste, yayımlanan web laboratuvarındaki GPS_CITIES kataloğuyla eşit tutulur.
 CITY_CATALOG: dict[str, tuple[str, float, float]] = {
     "istanbul": ("İstanbul", 28.9784, 41.0082),
     "ankara": ("Ankara", 32.8597, 39.9334),

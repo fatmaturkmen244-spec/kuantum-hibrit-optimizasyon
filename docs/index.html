@@ -191,6 +191,21 @@
     .share-card strong { display: block; }
     .share-card p { max-width: 560px; margin: 5px 0 0; color: var(--muted); font-size: .84rem; }
 
+    .network-lab { display: grid; grid-template-columns: .85fr 1.15fr; gap: 22px; margin-top: 32px; }
+    .network-stage { min-height: 370px; padding: 10px; border: 1px solid var(--line); border-radius: 16px; background: #071425; overflow: hidden; }
+    #network { display: block; width: 100%; min-height: 340px; }
+    .network-source { margin: 10px 2px 0; color: var(--muted); font-size: .8rem; }
+    .partition-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+    .partition { min-height: 116px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: rgba(7, 20, 37, .72); }
+    .partition strong { display: block; margin-bottom: 9px; }
+    .partition.a { border-top: 3px solid var(--violet); }
+    .partition.b { border-top: 3px solid var(--amber); }
+    .partition-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+    .partition-chip { padding: 4px 8px; border-radius: 999px; color: var(--text); background: rgba(151, 176, 224, .12); font-size: .78rem; }
+    .edge-list { display: grid; gap: 7px; margin-top: 16px; }
+    .cut-edge { display: flex; justify-content: space-between; gap: 12px; padding: 9px 11px; border-radius: 10px; background: rgba(55, 212, 245, .08); color: var(--muted); font-size: .84rem; }
+    .cut-edge strong { color: var(--cyan); }
+
     .feature-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 30px; }
     .feature { min-height: 210px; padding: 24px; }
     .feature .n { color: var(--cyan); font-size: .77rem; font-weight: 850; letter-spacing: .12em; }
@@ -201,13 +216,13 @@
     .footer-row { display: flex; justify-content: space-between; gap: 20px; }
 
     @media (max-width: 900px) {
-      .hero-grid, .lab { grid-template-columns: 1fr; }
+      .hero-grid, .lab, .network-lab { grid-template-columns: 1fr; }
       .orb { margin-top: 30px; }
       .feature-grid, .proof-strip { grid-template-columns: 1fr; }
     }
     @media (max-width: 620px) {
       .nav-links a:not(.button) { display: none; }
-      .metrics, .method-grid { grid-template-columns: 1fr; }
+      .metrics, .method-grid, .partition-grid { grid-template-columns: 1fr; }
       .location-card { grid-template-columns: auto 1fr; }
       .location-card a { grid-column: 2; }
       .hero { padding-top: 56px; }
@@ -221,7 +236,8 @@
     <nav class="wrap">
       <div class="brand"><span class="atom">⚛</span> Quantum Route Lab</div>
       <div class="nav-links">
-        <a href="#demo">Canlı demo</a>
+        <a href="#laboratuvar">Rota laboratuvarı</a>
+        <a href="#maxcut">Ağ bölme · V2</a>
         <a href="#fark">Farkı</a>
         <a class="button" href="https://github.com/fatmaturkmen244-spec/kuantum-hibrit-optimizasyon">GitHub ↗</a>
       </div>
@@ -236,7 +252,7 @@
           <h1>Kuantumu vaat değil, ölçülebilir deney yap.</h1>
           <p class="lead">Problemi normal Türkçe ile anlat. Aynı rota problemini klasik ve kuantum yöntemleriyle karşılaştır; kaliteyi, süreyi ve kuantum kanıt seviyesini birlikte gör.</p>
           <div class="actions">
-            <a class="button primary" href="#demo">Demoyu çalıştır</a>
+            <a class="button primary" href="#laboratuvar">Laboratuvarı aç</a>
             <a class="button" href="https://github.com/fatmaturkmen244-spec/kuantum-hibrit-optimizasyon">Q# kodunu incele</a>
             <a class="button" href="https://youtu.be/JZYghIdtH5U" target="_blank" rel="noopener noreferrer">2 dakikalık sunumu izle ↗</a>
           </div>
@@ -254,9 +270,9 @@
       </div>
     </section>
 
-    <section id="demo">
+    <section id="laboratuvar">
       <div class="wrap">
-        <div class="eyebrow">Canlı web demosu</div>
+        <div class="eyebrow">Canlı optimizasyon laboratuvarı</div>
         <h2>Gerçek GPS noktalarını kullan, yöntemi karşılaştır.</h2>
         <p class="section-copy">Bu herkese açık sürüm 14 şehri WGS84 şehir merkezi GPS referans noktalarıyla eşler. Her konum sonucu OpenStreetMap'te doğrulanabilir. Azure Maps sunucusu bağlandığında aynı deney gerçek sürüş kilometresi ve süresiyle çalışır; bağlantı yoksa kuş uçuşu modu açıkça belirtilir.</p>
 
@@ -302,6 +318,46 @@
       </div>
     </section>
 
+    <section id="maxcut">
+      <div class="wrap">
+        <div class="eyebrow">V2 · MAX-CUT / AĞ BÖLME</div>
+        <h2>Bir ilişki ağını iki güçlü gruba ayır.</h2>
+        <p class="section-copy">Rota dışında, kuantum optimizasyonunun çok kullanılan bir problem ailesini de görünür kılıyoruz. Max-Cut, güçlü bağlantıları iki grubun arasına taşımaya çalışır: ekipleri ayırma, portföy çeşitlendirme ve iş yükü dengeleme gibi karar problemlerinin küçük, anlaşılır bir modeli.</p>
+
+        <div class="network-lab">
+          <article class="card input-card">
+            <label for="maxcut-problem">Ağ bölme isteğin</label>
+            <textarea id="maxcut-problem">Ödeme, Kargo, İade, Teslimat ve Kampanya işlerini iki gruba ayır. Güçlü bağımlılıkları mümkün olduğunca iki grubun arasına taşı ve kuantum yöntemiyle karşılaştır.</textarea>
+            <p class="hint">Bu ilk V2 senaryosu şu iş adlarını tanır: Ödeme, Kargo, İade, Teslimat, Kampanya. Kenarların kalınlığı, örnekteki iş bağımlılığının gücünü temsil eder; sonuçta hangi bağlantıların kesildiği açıkça gösterilir.</p>
+            <button class="button primary full" id="solve-maxcut" type="button">Ağı iki gruba ayır</button>
+            <div class="status" id="maxcut-status">Örnek ağ hazır. İsteği düzenleyebilir veya doğrudan çalıştırabilirsin.</div>
+            <div class="truth"><strong>Açık gösterim:</strong> Bu alan tarayıcıda gerçek bir optimizasyon hesabı yapar; “kuantum olasılık modeli” ise donanım sonucu değil, iyi kesimleri öne çıkaran kuantum-esinli bir olasılık simülasyonudur. Tam Python API, aynı Max-Cut problemi için ayrıca doğrulanabilir bir çözüm ucu sağlar.</div>
+          </article>
+
+          <article class="card results-card" aria-live="polite">
+            <div class="result-head">
+              <div>
+                <div class="eyebrow">V2 SONUCU</div>
+                <h3 id="maxcut-title">Ağ henüz bölünmedi</h3>
+              </div>
+              <span class="badge" id="maxcut-level">Kuantum seviyesi 1/3</span>
+            </div>
+            <div class="metrics">
+              <div class="metric"><span>Kesim skoru</span><strong id="cut-score">—</strong></div>
+              <div class="metric"><span>Kesilen bağlantı</span><strong id="cut-count">—</strong></div>
+              <div class="metric"><span>En iyi yöntem</span><strong id="cut-method">—</strong></div>
+              <div class="metric"><span>Olası bölünme</span><strong id="cut-state-space">—</strong></div>
+            </div>
+            <div class="network-stage"><svg id="network" viewBox="0 0 760 360" role="img" aria-label="Ağ düğümlerinin iki kümeye ayrılması"></svg></div>
+            <div class="network-source" id="network-source">Ağ çalıştırıldığında kesilen bağlantılar turkuaz, aynı grupta kalanlar soluk çizilir.</div>
+            <div class="partition-grid" id="partitions"></div>
+            <div class="method-grid" id="maxcut-methods"></div>
+            <div class="edge-list" id="cut-edges"></div>
+          </article>
+        </div>
+      </div>
+    </section>
+
     <section id="fark">
       <div class="wrap">
         <div class="eyebrow">Neden farklı?</div>
@@ -319,7 +375,7 @@
 
   <footer>
     <div class="wrap footer-row">
-      <span>Quantum Route Lab · Hibrit optimizasyon ilk demosu</span>
+      <span>Quantum Route Lab · Açık hibrit optimizasyon laboratuvarı</span>
       <a href="https://github.com/fatmaturkmen244-spec/kuantum-hibrit-optimizasyon">Kaynak kod ve tam Q# uygulaması ↗</a>
     </div>
   </footer>

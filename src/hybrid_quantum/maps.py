@@ -1,7 +1,7 @@
 """Azure Maps integration kept behind the server boundary.
 
 This module deliberately never exposes an Azure Maps credential to a browser.
-The public GitHub Pages demo can call a separately deployed API, while this
+The public GitHub Pages laboratory can call a separately deployed API, while this
 client reads its credential only from the server process environment.
 """
 

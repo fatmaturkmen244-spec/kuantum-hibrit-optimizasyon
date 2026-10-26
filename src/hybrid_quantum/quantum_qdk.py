@@ -141,7 +141,7 @@ def solve_qdk_qaoa(
     """Kapı düzeyi QAOA devresini QDK simülatöründe veya Azure Quantum'da çalıştırır."""
     if len(cities) > 5:
         raise QuantumRuntimeError(
-            "QDK demosu en fazla 5 istasyonla sınırlandırıldı; qubit/devre maliyeti hızla büyür."
+            "QDK çalışması en fazla 5 istasyonla sınırlandırıldı; qubit/devre maliyeti hızla büyür."
         )
 
     started = time.perf_counter()
@@ -155,7 +155,7 @@ def solve_qdk_qaoa(
     encoded_costs = np.full(state_count, float(normalized.max() + 2.0), dtype=float)
     encoded_costs[: len(tours)] = normalized
 
-    # Arayüz demosunu hızlı ve öngörülebilir tutmak için tek devre parametresi çalıştırılır.
+    # Arayüz çalışmasını hızlı ve öngörülebilir tutmak için tek devre parametresi çalıştırılır.
     # Daha kapsamlı parametre taraması ayrı benchmark akışında yapılmalıdır.
     candidates = [(0.8, 0.55)]
     best_expected = math.inf

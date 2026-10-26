@@ -710,7 +710,7 @@ with language_tab:
         key="natural_route_problem",
     )
     supported_names = ", ".join(city[0] for city in CITY_CATALOG.values())
-    st.caption("Kullanılabilen demo şehirleri: " + supported_names)
+    st.caption("Kullanılabilen laboratuvar şehirleri: " + supported_names)
     st.info(
         "Azure OpenAI bağlıysa cümleyi yapay zekâ yapılandırır. Bağlı değilse uygulama aynı özelliği yerel şehir sözlüğüyle çalıştırır."
     )

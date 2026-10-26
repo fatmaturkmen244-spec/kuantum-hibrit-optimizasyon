@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import math
+import unicodedata
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class SolverName(str, Enum):
@@ -12,6 +13,131 @@ class SolverName(str, Enum):
     SIMULATED_ANNEALING = "simulated_annealing"
     QUANTUM_SIMULATOR = "quantum_simulator"
     QDK_QAOA = "qdk_qaoa"
+
+
+def _maxcut_label_key(value: str) -> str:
+    """Return a Turkish-safe comparison key for a Max-Cut vertex label."""
+
+    lowered = value.casefold().replace("ı", "i")
+    decomposed = unicodedata.normalize("NFKD", lowered)
+    return "".join(character for character in decomposed if not unicodedata.combining(character))
+
+
+class MaxCutEdge(BaseModel):
+    """One weighted, undirected edge in a Max-Cut graph."""
+
+    source: str = Field(min_length=1, max_length=80)
+    target: str = Field(min_length=1, max_length=80)
+    weight: float = Field(default=1.0, gt=0, le=1_000_000)
+
+    @field_validator("source", "target")
+    @classmethod
+    def edge_labels_are_clean(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("Kenar uçları boş olamaz.")
+        if any(character in cleaned for character in "\r\n\t"):
+            raise ValueError("Kenar uçları satır sonu veya sekme içeremez.")
+        return cleaned
+
+    @field_validator("weight")
+    @classmethod
+    def edge_weight_is_finite(cls, value: float) -> float:
+        if not math.isfinite(value):
+            raise ValueError("Kenar ağırlığı sonlu bir sayı olmalıdır.")
+        return float(value)
+
+    @model_validator(mode="after")
+    def edge_is_not_a_self_loop(self) -> "MaxCutEdge":
+        if _maxcut_label_key(self.source) == _maxcut_label_key(self.target):
+            raise ValueError("Max-Cut grafında bir kenar kendisine bağlanamaz.")
+        return self
+
+
+class MaxCutGraph(BaseModel):
+    """A deliberately small weighted graph suitable for the local simulator."""
+
+    nodes: list[str] = Field(min_length=2, max_length=10)
+    edges: list[MaxCutEdge] = Field(min_length=1, max_length=45)
+
+    @field_validator("nodes")
+    @classmethod
+    def node_labels_are_clean(cls, values: list[str]) -> list[str]:
+        cleaned: list[str] = []
+        for value in values:
+            label = value.strip()
+            if not label:
+                raise ValueError("Düğüm adları boş olamaz.")
+            if any(character in label for character in "\r\n\t"):
+                raise ValueError("Düğüm adları satır sonu veya sekme içeremez.")
+            if len(label) > 80:
+                raise ValueError("Düğüm adı en fazla 80 karakter olabilir.")
+            cleaned.append(label)
+        return cleaned
+
+    @model_validator(mode="after")
+    def graph_is_consistent(self) -> "MaxCutGraph":
+        node_keys = [_maxcut_label_key(node) for node in self.nodes]
+        if len(node_keys) != len(set(node_keys)):
+            raise ValueError("Düğüm adları benzersiz olmalıdır.")
+
+        known_nodes = set(node_keys)
+        seen_edges: set[tuple[str, str]] = set()
+        for edge in self.edges:
+            source_key = _maxcut_label_key(edge.source)
+            target_key = _maxcut_label_key(edge.target)
+            if source_key not in known_nodes or target_key not in known_nodes:
+                raise ValueError("Her kenarın iki ucu da tanımlı düğümlerden biri olmalıdır.")
+            edge_key = tuple(sorted((source_key, target_key)))
+            if edge_key in seen_edges:
+                raise ValueError("Aynı iki düğüm arasında yinelenen kenar tanımlanamaz.")
+            seen_edges.add(edge_key)
+        return self
+
+
+class MaxCutRequest(BaseModel):
+    """Natural-language-ish, locally parsed Max-Cut request.
+
+    ``problem`` deliberately stays text-only in the public API so that all
+    graph inputs pass through the same strict ``Düğümler:/Kenarlar:`` parser.
+    """
+
+    problem: str = Field(min_length=12, max_length=2_000)
+    seed: int = Field(default=42, ge=0, le=2_147_483_647)
+    annealing_iterations: int = Field(default=2_000, ge=100, le=100_000)
+    quantum_layers: int = Field(default=2, ge=1, le=8)
+
+
+class MaxCutQuboMetadata(BaseModel):
+    """Transparent binary QUBO encoding for a Max-Cut request."""
+
+    variables: list[str]
+    upper_triangular_matrix: list[list[float]]
+    objective: Literal["minimize_negative_cut_weight"] = "minimize_negative_cut_weight"
+    encoding: str = "x_i=0 => Küme A, x_i=1 => Küme B"
+    energy_formula: str = "E(x)=Σ_i Q_ii x_i + Σ_i<j Q_ij x_i x_j = -kesim_ağırlığı"
+    constant_offset: float = 0.0
+
+
+class MaxCutResult(BaseModel):
+    solver: SolverName
+    cut_weight: float
+    partition_a: list[str]
+    partition_b: list[str]
+    cut_edges: list[MaxCutEdge]
+    bitstring: str
+    runtime_ms: float
+    metadata: dict[str, float | int | str] = Field(default_factory=dict)
+
+
+class MaxCutResponse(BaseModel):
+    graph: MaxCutGraph
+    qubo: MaxCutQuboMetadata
+    results: list[MaxCutResult]
+    best_solver: SolverName
+    parser_source: str
+    explanation: str
+    warnings: list[str] = Field(default_factory=list)
 
 
 class GeoPoint(BaseModel):

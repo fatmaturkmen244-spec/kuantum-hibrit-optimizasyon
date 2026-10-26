@@ -7,6 +7,7 @@ from collections import defaultdict, deque
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from .maxcut import solve_maxcut
 from .maps import (
     AzureMapsClient,
     AzureMapsConfigurationError,
@@ -18,6 +19,8 @@ from .models import (
     City,
     GeocodeRequest,
     GeocodeResponse,
+    MaxCutRequest,
+    MaxCutResponse,
     OptimizationRequest,
     OptimizationResponse,
     RoadOptimizationRequest,
@@ -57,7 +60,7 @@ app.add_middleware(
 
 
 class _MapsRequestLimiter:
-    """Small in-process throttle for the demo proxy; deploy a gateway for scale."""
+    """Small in-process throttle for the public route proxy; deploy a gateway for scale."""
 
     def __init__(self, limit: int, window_seconds: float = 60.0) -> None:
         self.limit = limit
@@ -114,6 +117,20 @@ def optimize(request: OptimizationRequest) -> OptimizationResponse:
     return optimize_routes(request)
 
 
+@app.post("/maxcut/solve", response_model=MaxCutResponse)
+def optimize_maxcut(request: MaxCutRequest) -> MaxCutResponse:
+    """Solve a locally parsed, small weighted Max-Cut problem.
+
+    No Azure credential or free-form QUBO is accepted on this endpoint; the
+    graph must pass the shared ``Düğümler:/Kenarlar:`` validation first.
+    """
+
+    try:
+        return solve_maxcut(request)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
 @app.post("/maps/geocode", response_model=GeocodeResponse)
 async def geocode_location(body: GeocodeRequest, request: Request) -> GeocodeResponse:
     """Resolve an address server-side; the Maps credential never reaches the browser."""
@@ -126,7 +143,7 @@ async def geocode_location(body: GeocodeRequest, request: Request) -> GeocodeRes
 
 @app.post("/maps/route-matrix", response_model=RouteMatrixResponse)
 async def route_matrix(body: RouteMatrixRequest, request: Request) -> RouteMatrixResponse:
-    """Return a real, directed road-distance/time matrix for a small demo route."""
+    """Return a real, directed road-distance/time matrix for a small route request."""
     client = _maps_client(request)
     try:
         return await client.route_matrix(body.locations, traffic=body.traffic)

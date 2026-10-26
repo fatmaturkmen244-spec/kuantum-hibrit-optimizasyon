@@ -2,7 +2,7 @@
   "use strict";
 
   // Şehir merkezleri için WGS84 (latitude/longitude) referans koordinatları.
-  // Bu katalog, dışarıya API anahtarı vermeden net konum gösteren güvenli web demo katmanıdır.
+  // Bu katalog, dışarıya API anahtarı vermeden net konum gösteren güvenli web katmanıdır.
   // Büyük şehirlerde tek bir evrensel merkez noktası olmadığı için bunlar kapı/adres değil,
   // kullanıcı tarafından OpenStreetMap üzerinde doğrulanabilen şehir merkezi referanslarıdır.
   const GPS_CITIES = {
@@ -32,6 +32,27 @@
   let routeMap;
   let routeLayer;
   let latestShareSummary = "";
+
+  // V2 ağ bölme senaryosu: ağırlık, iki iş arasındaki iş bağımlılığının gücüdür.
+  // Kullanıcının metni yalnızca bu açık, görünür senaryodaki düğümleri seçer.
+  const MAXCUT_SCENARIO = {
+    nodes: [
+      { id: "odeme", label: "Ödeme" },
+      { id: "kargo", label: "Kargo" },
+      { id: "iade", label: "İade" },
+      { id: "teslimat", label: "Teslimat" },
+      { id: "kampanya", label: "Kampanya" }
+    ],
+    edges: [
+      { source: "odeme", target: "iade", weight: 9 },
+      { source: "kargo", target: "teslimat", weight: 8 },
+      { source: "iade", target: "kampanya", weight: 7 },
+      { source: "teslimat", target: "kampanya", weight: 6 },
+      { source: "odeme", target: "kampanya", weight: 5 },
+      { source: "kargo", target: "iade", weight: 4 },
+      { source: "odeme", target: "kargo", weight: 3 }
+    ]
+  };
 
   const normalize = value => value.toLocaleLowerCase("tr-TR")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
@@ -348,6 +369,313 @@
     }
   }
 
+  function maxCutNodesFromText(text) {
+    const source = normalize(text);
+    return MAXCUT_SCENARIO.nodes.filter(node => source.includes(normalize(node.label)));
+  }
+
+  function createMaxCutGraph(nodes) {
+    const nodeIndex = new Map(nodes.map((node, index) => [node.id, index]));
+    return MAXCUT_SCENARIO.edges
+      .filter(edge => nodeIndex.has(edge.source) && nodeIndex.has(edge.target))
+      .map(edge => ({
+        ...edge,
+        sourceIndex: nodeIndex.get(edge.source),
+        targetIndex: nodeIndex.get(edge.target)
+      }));
+  }
+
+  function enumerateMaxCutPartitions(size) {
+    const partitions = [];
+    // İlk düğümü A kümesinde sabitleyerek A/B ayna kopyalarını eleriz.
+    for (let mask = 0; mask < 2 ** (size - 1); mask++) {
+      const assignment = [true];
+      for (let index = 1; index < size; index++) {
+        assignment.push(Boolean(mask & (1 << (index - 1))));
+      }
+      if (!assignment.every(Boolean)) partitions.push(assignment);
+    }
+    return partitions;
+  }
+
+  function maxCutScore(assignment, edges) {
+    return edges.reduce(
+      (total, edge) => total + (assignment[edge.sourceIndex] !== assignment[edge.targetIndex] ? edge.weight : 0),
+      0
+    );
+  }
+
+  function groupsForAssignment(nodes, assignment) {
+    return {
+      a: nodes.filter((_, index) => assignment[index]).map(node => node.label),
+      b: nodes.filter((_, index) => !assignment[index]).map(node => node.label)
+    };
+  }
+
+  function exactMaxCut(nodes, edges) {
+    const started = performance.now();
+    const states = enumerateMaxCutPartitions(nodes.length);
+    let best = states[0];
+    let bestScore = maxCutScore(best, edges);
+    states.slice(1).forEach(assignment => {
+      const score = maxCutScore(assignment, edges);
+      if (score > bestScore) {
+        best = assignment;
+        bestScore = score;
+      }
+    });
+    return {
+      name: "Kesin kontrol",
+      assignment: best,
+      score: bestScore,
+      states: states.length,
+      ms: performance.now() - started,
+      cls: "exact",
+      detail: `${states.length.toLocaleString("tr-TR")} benzersiz bölünmenin tamamı denetlendi.`
+    };
+  }
+
+  function seededRandom(seed) {
+    let value = seed >>> 0;
+    return () => {
+      value += 0x6D2B79F5;
+      let mixed = value;
+      mixed = Math.imul(mixed ^ (mixed >>> 15), mixed | 1);
+      mixed ^= mixed + Math.imul(mixed ^ (mixed >>> 7), mixed | 61);
+      return ((mixed ^ (mixed >>> 14)) >>> 0) / 4_294_967_296;
+    };
+  }
+
+  function randomMaxCutPartition(size, random) {
+    const assignment = Array.from({ length: size }, (_, index) => index === 0 || random() >= .5);
+    if (assignment.every(Boolean)) assignment[assignment.length - 1] = false;
+    return assignment;
+  }
+
+  function annealMaxCut(nodes, edges) {
+    const started = performance.now();
+    const iterations = 3_600;
+    const random = seededRandom(20_261_026 + nodes.length * 101 + edges.length);
+    let current = randomMaxCutPartition(nodes.length, random);
+    let currentScore = maxCutScore(current, edges);
+    let best = current.slice();
+    let bestScore = currentScore;
+    let accepted = 0;
+    let temperature = Math.max(edges.reduce((total, edge) => total + edge.weight, 0) / 3, 1);
+    const cooling = (0.02 / temperature) ** (1 / Math.max(iterations - 1, 1));
+
+    for (let step = 0; step < iterations; step++) {
+      const index = 1 + Math.floor(random() * (nodes.length - 1));
+      const candidate = current.slice();
+      candidate[index] = !candidate[index];
+      if (candidate.every(Boolean)) continue;
+      const candidateScore = maxCutScore(candidate, edges);
+      const gain = candidateScore - currentScore;
+      if (gain >= 0 || random() < Math.exp(gain / Math.max(temperature, .0001))) {
+        current = candidate;
+        currentScore = candidateScore;
+        accepted++;
+        if (currentScore > bestScore) {
+          best = current.slice();
+          bestScore = currentScore;
+        }
+      }
+      temperature *= cooling;
+    }
+
+    return {
+      name: "Klasik hızlı",
+      assignment: best,
+      score: bestScore,
+      ms: performance.now() - started,
+      cls: "fast",
+      detail: `${iterations.toLocaleString("tr-TR")} bit-flip adımı · ${accepted.toLocaleString("tr-TR")} kabul.`
+    };
+  }
+
+  function quantumMaxCutModel(nodes, edges) {
+    const started = performance.now();
+    const states = enumerateMaxCutPartitions(nodes.length);
+    const scores = states.map(assignment => maxCutScore(assignment, edges));
+    const highest = Math.max(...scores);
+    const lowest = Math.min(...scores);
+    const temperature = Math.max((highest - lowest) / 2.8, .75);
+    // En yüksek kesime yakın durumları olasılıkta öne çıkaran şeffaf, eğitim amaçlı model.
+    const amplitudes = scores.map(score => Math.exp((score - highest) / temperature));
+    const amplitudeTotal = amplitudes.reduce((total, value) => total + value, 0);
+    const probabilities = amplitudes.map(value => value / amplitudeTotal);
+    const random = seededRandom(9_071 + nodes.length * 67 + edges.length);
+    let bestIndex = 0;
+    for (let shot = 0; shot < 512; shot++) {
+      const pick = random();
+      let cumulative = 0;
+      for (let index = 0; index < probabilities.length; index++) {
+        cumulative += probabilities[index];
+        if (pick <= cumulative) {
+          if (scores[index] > scores[bestIndex]) bestIndex = index;
+          break;
+        }
+      }
+    }
+    const peakProbability = Math.max(...probabilities);
+    return {
+      name: "Kuantum olasılık modeli",
+      assignment: states[bestIndex],
+      score: scores[bestIndex],
+      ms: performance.now() - started,
+      cls: "quantum",
+      detail: `En güçlü olasılık, eşit seçime göre ${(peakProbability * states.length).toFixed(2)}× öne çıktı.`
+    };
+  }
+
+  function escapeSvgText(value) {
+    return String(value).replace(/[&<>"']/g, character => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
+    })[character]);
+  }
+
+  function drawNetwork(nodes, edges, assignment) {
+    const svg = document.getElementById("network");
+    const centerX = 380;
+    const centerY = 180;
+    const radiusX = Math.min(252, 66 + nodes.length * 42);
+    const radiusY = 112;
+    const positions = nodes.map((node, index) => {
+      const angle = -Math.PI / 2 + (Math.PI * 2 * index) / nodes.length;
+      return { ...node, x: centerX + Math.cos(angle) * radiusX, y: centerY + Math.sin(angle) * radiusY };
+    });
+    const edgeMarkup = edges.map(edge => {
+      const source = positions[edge.sourceIndex];
+      const target = positions[edge.targetIndex];
+      const cut = assignment[edge.sourceIndex] !== assignment[edge.targetIndex];
+      const middleX = (source.x + target.x) / 2;
+      const middleY = (source.y + target.y) / 2;
+      const stroke = cut ? "#37d4f5" : "#405271";
+      const label = cut ? "#37d4f5" : "#9ba9c2";
+      return `<g>
+        <line x1="${source.x}" y1="${source.y}" x2="${target.x}" y2="${target.y}" stroke="${stroke}" stroke-width="${cut ? 4 : 2}" stroke-opacity="${cut ? .95 : .72}" />
+        <circle cx="${middleX}" cy="${middleY}" r="11" fill="#071425" stroke="${stroke}" stroke-width="1" />
+        <text x="${middleX}" y="${middleY + 4}" fill="${label}" font-size="11" font-weight="800" text-anchor="middle">${edge.weight}</text>
+      </g>`;
+    }).join("");
+    const nodeMarkup = positions.map((node, index) => {
+      const fill = assignment[index] ? "#7566ff" : "#ffc96b";
+      const group = assignment[index] ? "A" : "B";
+      return `<g>
+        <circle cx="${node.x}" cy="${node.y}" r="27" fill="${fill}" stroke="#ffffff" stroke-width="2" />
+        <text x="${node.x}" y="${node.y + 5}" fill="#071425" font-size="13" font-weight="900" text-anchor="middle">${group}</text>
+        <text x="${node.x}" y="${node.y + 48}" fill="#edf3ff" font-size="13" font-weight="760" text-anchor="middle">${escapeSvgText(node.label)}</text>
+      </g>`;
+    }).join("");
+    svg.innerHTML = `<rect width="760" height="360" rx="14" fill="#071425" />${edgeMarkup}${nodeMarkup}`;
+  }
+
+  function renderPartitions(nodes, assignment) {
+    const host = document.getElementById("partitions");
+    const groups = groupsForAssignment(nodes, assignment);
+    host.replaceChildren();
+    [
+      { key: "a", title: "Küme A · mor", items: groups.a },
+      { key: "b", title: "Küme B · kehribar", items: groups.b }
+    ].forEach(group => {
+      const card = document.createElement("section");
+      card.className = `partition ${group.key}`;
+      const title = document.createElement("strong");
+      title.textContent = group.title;
+      const chips = document.createElement("div");
+      chips.className = "partition-chips";
+      group.items.forEach(item => {
+        const chip = document.createElement("span");
+        chip.className = "partition-chip";
+        chip.textContent = item;
+        chips.appendChild(chip);
+      });
+      card.append(title, chips);
+      host.appendChild(card);
+    });
+  }
+
+  function renderMaxCutMethods(results) {
+    const host = document.getElementById("maxcut-methods");
+    host.replaceChildren();
+    results.forEach(result => {
+      const card = document.createElement("div");
+      card.className = `method ${result.cls}`;
+      const title = document.createElement("strong");
+      title.textContent = result.name;
+      const score = document.createElement("small");
+      score.textContent = `${result.score} kesim skoru · ${result.ms.toFixed(2)} ms`;
+      const detail = document.createElement("small");
+      detail.textContent = result.detail;
+      card.append(title, score, detail);
+      host.appendChild(card);
+    });
+  }
+
+  function renderCutEdges(nodes, edges, assignment) {
+    const host = document.getElementById("cut-edges");
+    const cutEdges = edges
+      .filter(edge => assignment[edge.sourceIndex] !== assignment[edge.targetIndex])
+      .sort((first, second) => second.weight - first.weight);
+    host.replaceChildren();
+    if (!cutEdges.length) return;
+    cutEdges.forEach(edge => {
+      const row = document.createElement("div");
+      row.className = "cut-edge";
+      const label = document.createElement("span");
+      label.textContent = `${nodes[edge.sourceIndex].label} ↔ ${nodes[edge.targetIndex].label}`;
+      const score = document.createElement("strong");
+      score.textContent = `+${edge.weight}`;
+      row.append(label, score);
+      host.appendChild(row);
+    });
+  }
+
+  const maxCutButton = document.getElementById("solve-maxcut");
+  maxCutButton.addEventListener("click", () => {
+    const status = document.getElementById("maxcut-status");
+    const nodes = maxCutNodesFromText(document.getElementById("maxcut-problem").value);
+    if (nodes.length < 3) {
+      status.style.color = "var(--red)";
+      status.textContent = "En az üç tanınan iş adı yazmalısın: Ödeme, Kargo, İade, Teslimat veya Kampanya.";
+      return;
+    }
+    const edges = createMaxCutGraph(nodes);
+    if (!edges.length) {
+      status.style.color = "var(--red)";
+      status.textContent = "Seçilen işlerde görünür bir bağımlılık bulunamadı.";
+      return;
+    }
+
+    maxCutButton.disabled = true;
+    try {
+      const results = [
+        exactMaxCut(nodes, edges),
+        annealMaxCut(nodes, edges),
+        quantumMaxCutModel(nodes, edges)
+      ];
+      const best = results.reduce((first, second) => first.score >= second.score ? first : second);
+      const cutCount = edges.filter(edge => best.assignment[edge.sourceIndex] !== best.assignment[edge.targetIndex]).length;
+      document.getElementById("maxcut-title").textContent = `${nodes.length} iş düğümü, ${edges.length} görünür bağımlılık`;
+      document.getElementById("cut-score").textContent = best.score.toLocaleString("tr-TR");
+      document.getElementById("cut-count").textContent = `${cutCount} / ${edges.length}`;
+      document.getElementById("cut-method").textContent = best.name;
+      document.getElementById("cut-state-space").textContent = results[0].states.toLocaleString("tr-TR");
+      document.getElementById("network-source").textContent = "Tarayıcı içi, açık ağırlıklı Max-Cut hesabı · Turkuaz çizgiler iki farklı kümeye taşınan bağlantıları, üzerlerindeki sayı ise bağımlılık gücünü gösterir.";
+      drawNetwork(nodes, edges, best.assignment);
+      renderPartitions(nodes, best.assignment);
+      renderMaxCutMethods(results);
+      renderCutEdges(nodes, edges, best.assignment);
+      status.style.color = "var(--green)";
+      status.textContent = `${nodes.length} düğüm ve ${edges.length} bağımlılık için üç yöntem aynı problemde karşılaştırıldı.`;
+    } catch (error) {
+      status.style.color = "var(--red)";
+      status.textContent = `Ağ bölünemedi: ${error instanceof Error ? error.message : "beklenmeyen hata"}`;
+    } finally {
+      maxCutButton.disabled = false;
+    }
+  });
+
   const previousButton = document.getElementById("solve");
   const solveButton = previousButton.cloneNode(true);
   previousButton.replaceWith(solveButton);
@@ -364,7 +692,7 @@
       return;
     }
     const cityNotice = cities.length > 8
-      ? "Web demosu güvenli çalışma için ilk 8 şehri kullandı."
+      ? "Tarayıcı güvenli çalışma için ilk 8 şehri kullandı."
       : `${cities.length} şehir WGS84 şehir merkezi GPS referansıyla eşleşti.`;
     if (cities.length > 8) {
       cities = cities.slice(0, 8);

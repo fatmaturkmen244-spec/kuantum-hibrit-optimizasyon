@@ -4,13 +4,13 @@ Microsoft Azure OpenAI, Microsoft QDK ve Azure Quantum entegrasyonuna hazır; do
 
 ## Canlı bağlantılar
 
-- **Herkese açık web demosu:** https://fatmaturkmen244-spec.github.io/kuantum-hibrit-optimizasyon/
+- **Canlı laboratuvar:** https://fatmaturkmen244-spec.github.io/kuantum-hibrit-optimizasyon/
 - **Sunum:** [Quantum_Route_Lab_Sunum_v2.pptx](Quantum_Route_Lab_Sunum_v2.pptx)
 - **2 dakikalık proje videosu:** https://youtu.be/JZYghIdtH5U
 
-Web demosu tarayıcı içinde kesin, klasik hızlı ve kuantum-esinli olasılık modelini çalıştırır. Microsoft Q# ve Azure Quantum özellikleri, Python/QDK tabanlı tam uygulamada çalışır; arayüz bu seviyeleri birbirinden açıkça ayırır.
+Web laboratuvarı tarayıcı içinde kesin, klasik hızlı ve kuantum-esinli olasılık modelini çalıştırır. Microsoft Q# ve Azure Quantum özellikleri, Python/QDK tabanlı tam uygulamada çalışır; arayüz bu seviyeleri birbirinden açıkça ayırır.
 
-## Demo neler yapıyor?
+## Laboratuvar neler yapıyor?
 
 - 3–10 istasyon için kapalı rota oluşturur.
 - Simulated Annealing ve durum-vektörü tabanlı QAOA-benzeri simülatörü karşılaştırır.
@@ -24,16 +24,36 @@ Web demosu tarayıcı içinde kesin, klasik hızlı ve kuantum-esinli olasılık
 - Kazanan rotayı çizer; qubit, ölçüm, olasılık, kapı ailesi ve devre parmak izini gösterir.
 - Her deney için kuantum avantajının gözlenip gözlenmediğini dürüstçe yorumlar.
 - Sonuç ekranı kuantum seviyesini üç basamakta gösterir: kuantum modeli, Microsoft Q# devresi ve Azure Quantum işi.
+- V2 ile, rota dışında Max-Cut ağ bölme problemi de klasik, kesin ve kuantum-esinli yöntemlerle görselleştirilebilir.
 
 > **Bilimsel sınır:** `quantum_simulator`, geçerli turların indirgenmiş durum uzayında maliyet fazı ve difüzyon karıştırıcısı kullanan eğitim amaçlı bir simülatördür. Azure Quantum donanım işi veya tam kapı düzeyi QAOA değildir.
 
-`qdk_qaoa` ise Q# ile kapı düzeyi devre kurar ve Microsoft QDK üzerinde çalışır. Demo en fazla 5 istasyonla sınırlıdır. Yerel simülatörde çalışması gerçek kuantum donanım avantajı anlamına gelmez; Azure hedefi ayrıca yapılandırılmalıdır.
+`qdk_qaoa` ise Q# ile kapı düzeyi devre kurar ve Microsoft QDK üzerinde çalışır. Bu Q# yolu en fazla 5 istasyonla sınırlıdır. Yerel simülatörde çalışması gerçek kuantum donanım avantajı anlamına gelmez; Azure hedefi ayrıca yapılandırılmalıdır.
 
 Arayüzdeki **Kuantum kanıtı** bölümü backend, qubit, ölçüm sayısı, QDK sürümü, kullanılan kapı ailesi, ölçüm dağılımı ve devre parmak izini gösterir. Azure Quantum kullanıldığında ayrıca doğrulanabilir Azure iş kimliği görüntülenir.
 
 ## Diğer rota uygulamalarından farkı
 
 Bu proje bir navigasyon uygulaması değildir. Kullanıcının doğal dille anlattığı kombinatoryal problemi kesin klasik arama, klasik sezgisel arama, QAOA-benzeri statevector ve Q# kapı devresiyle çözen bir **karşılaştırma laboratuvarıdır**. Amaç “kuantum” etiketini göstermek değil; kuantum devresinin çözüm kalitesine, ölçüm dağılımına ve çalışma süresine etkisini denetlenebilir verilerle görünür kılmaktır.
+
+## V2 · Max-Cut ağ bölme
+
+Max-Cut, ağırlıklı bir ilişki ağını iki kümeye ayırırken iki küme arasına taşınan bağlantı ağırlığını en üst düzeye çıkarır. Laboratuvardaki ilk senaryo, ödeme, kargo, iade, teslimat ve kampanya işlerinin görünür bağımlılıklarını kullanır. Kullanıcı düğüm adlarını normal Türkçe ile yazar; sayfa seçilen düğümler için kesin arama, klasik bit-flip tavlama ve kuantum-esinli olasılık modelini aynı anda çalıştırır.
+
+Bu tarayıcı akışı gerçek bir yerel optimizasyon hesabıdır; “kuantum olasılık modeli” donanım veya Q# sonucu olarak temsil edilmez. Python API'deki Max-Cut çözüm ucu, serbest metni yalnızca açık `Düğümler:` ve `Kenarlar:` şemasıyla kabul eder ve tüm grafiği doğruladıktan sonra çözer. Bu sınır, doğal dil yorumunun görünmez veya hatalı bir kuantum modeline dönüşmesini engeller.
+
+API tarafında aynı problemi açık biçimde göndermek için `POST /maxcut/solve` kullanılır:
+
+```json
+{
+  "problem": "Düğümler: Ödeme, Kargo, İade. Kenarlar: Ödeme-Kargo:3, Ödeme-İade:9, Kargo-İade:4.",
+  "seed": 42,
+  "annealing_iterations": 2000,
+  "quantum_layers": 2
+}
+```
+
+Yanıt, doğrulanmış grafiği, `E = -kesim_ağırlığı` QUBO matrisini, üç yöntemin kümelerini ve kesilen kenarları birlikte döndürür.
 
 ## Kurulum
 
@@ -89,7 +109,7 @@ Arayüzde **Yazarak çöz** sekmesini açın ve örneğin şu cümleyi yazın:
 
 > İstanbul'dan başlayıp Ankara, İzmir, Antalya ve Bursa'yı ziyaret eden en kısa turu bul. Klasik yöntemlerle kuantum yöntemini karşılaştır.
 
-Web demosu, desteklenen 14 şehrin WGS84 şehir merkezi GPS referans noktalarını kullanır; koordinatlar ve OpenStreetMap pinleri sonuç ekranında gösterilir. Büyük şehirlerde tek bir evrensel merkez olmadığı için bu noktalar kapı/adres değil, doğrulanabilir şehir merkezi referanslarıdır. Varsayılan modda mesafe hesabı Haversine (kuş uçuşu) kilometreleridir. Azure Maps proxy'si bağlandığında ise aynı demo gerçek sürüş mesafesi ve tahmini sürüş süresi matrisini kullanır; arayüz hangi kaynağın kullanıldığını açıkça yazar.
+Web laboratuvarı, desteklenen 14 şehrin WGS84 şehir merkezi GPS referans noktalarını kullanır; koordinatlar ve OpenStreetMap pinleri sonuç ekranında gösterilir. Büyük şehirlerde tek bir evrensel merkez olmadığı için bu noktalar kapı/adres değil, doğrulanabilir şehir merkezi referanslarıdır. Varsayılan modda mesafe hesabı Haversine (kuş uçuşu) kilometreleridir. Azure Maps proxy'si bağlandığında ise aynı çalışma gerçek sürüş mesafesi ve tahmini sürüş süresi matrisini kullanır; arayüz hangi kaynağın kullanıldığını açıkça yazar.
 
 ## Gerçek yol verisi · Azure Maps proxy
 
@@ -112,7 +132,7 @@ AZURE_MAPS_SUBSCRIPTION_KEY=...
 AZURE_MAPS_ENDPOINT=https://atlas.microsoft.com
 ```
 
-Ardından yalnızca proxy URL'sini `docs/runtime-config.js` içindeki `apiBaseUrl` alanına yazın. Bu URL gizli değildir; anahtar boşta kalır ve yalnızca sunucudadır. URL boş bırakılırsa demo bozulmaz, mevcut GPS + kuş uçuşu yedeği çalışır. Public API için varsayılan CORS listesi yalnız GitHub Pages ve yerel geliştirme adreslerini kapsar; dağıtımda gerekirse `CORS_ALLOW_ORIGINS` ile açıkça genişletin.
+Ardından yalnızca proxy URL'sini `docs/runtime-config.js` içindeki `apiBaseUrl` alanına yazın. Bu URL gizli değildir; anahtar boşta kalır ve yalnızca sunucudadır. URL boş bırakılırsa laboratuvar bozulmaz, mevcut GPS + kuş uçuşu yedeği çalışır. Public API için varsayılan CORS listesi yalnız GitHub Pages ve yerel geliştirme adreslerini kapsar; dağıtımda gerekirse `CORS_ALLOW_ORIGINS` ile açıkça genişletin.
 
 Eski yerel arayüzdeki `/api/config` yardımcı endpoint'i varsayılan olarak kapalıdır; yalnız `ENABLE_LOCAL_CONFIG=true` ile ve `localhost` üzerinde çalışır. Public dağıtımda anahtarlar her zaman ortam değişkeni, Key Vault veya yönetilen kimlik üzerinden verilmelidir.
 
