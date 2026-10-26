@@ -5,7 +5,7 @@ import unicodedata
 from enum import Enum
 from typing import Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class SolverName(str, Enum):
@@ -187,6 +187,59 @@ class GeocodeCandidate(BaseModel):
 class GeocodeResponse(BaseModel):
     provider: Literal["azure_maps"] = "azure_maps"
     candidates: list[GeocodeCandidate] = Field(default_factory=list)
+
+
+class PlaceSearchRequest(BaseModel):
+    """A small, Turkey-only search request for a place or an address.
+
+    The country is deliberately not a client-controlled field.  The backend
+    uses a fixed Turkey scope for POI requests and verifies the country on
+    geocoder responses before returning a candidate.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    query: str = Field(min_length=2, max_length=200)
+    top: int = Field(default=5, ge=1, le=5)
+
+    @field_validator("query")
+    @classmethod
+    def place_query_is_clean(cls, value: str) -> str:
+        cleaned = value.strip()
+        if len(cleaned) < 2:
+            raise ValueError("Konum araması en az 2 karakter olmalıdır.")
+        if any(character in cleaned for character in "\r\n\t"):
+            raise ValueError("Konum araması satır sonu veya sekme içeremez.")
+        return cleaned
+
+
+class PlaceCandidate(BaseModel):
+    """A normalized address or point-of-interest result safe for the browser."""
+
+    label: str = Field(min_length=1, max_length=300)
+    point: GeoPoint
+    kind: Literal["address", "poi"]
+    reference: Literal["geocode", "poi"]
+    display_point: GeoPoint | None = None
+    address: str | None = Field(default=None, max_length=500)
+    category: str | None = Field(default=None, max_length=160)
+    confidence: str | None = Field(default=None, max_length=40)
+    score: float | None = None
+    uses_route_point: bool = False
+
+    @field_validator("score")
+    @classmethod
+    def score_is_finite(cls, value: float | None) -> float | None:
+        if value is not None and not math.isfinite(value):
+            raise ValueError("Arama puanı sonlu bir sayı olmalıdır.")
+        return value
+
+
+class PlaceSearchResponse(BaseModel):
+    provider: Literal["azure_maps"] = "azure_maps"
+    query: str
+    country: Literal["TR"] = "TR"
+    candidates: list[PlaceCandidate] = Field(default_factory=list)
 
 
 class RouteLocation(BaseModel):

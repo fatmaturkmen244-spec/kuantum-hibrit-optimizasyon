@@ -103,13 +103,19 @@ API belgeleri `http://127.0.0.1:8000/docs` adresindedir.
 
 `.env.example` dosyasını `.env` olarak kopyalayıp değerleri doldurun. Anahtarları Git'e eklemeyin. Uygulama bu dosyayı başlangıçta otomatik yükler.
 
-## Doğal dille kullanım örneği
+## Konumla kullanım
 
-Arayüzde **Yazarak çöz** sekmesini açın ve örneğin şu cümleyi yazın:
+Canlı laboratuvarda önce **Konum ekle** alanına il, ilçe, açık adres veya mağaza adı yazın. İl ve ilçe araması sayfada yerel olarak çalışır; örneğin `Kadıköy, İstanbul` sonucunu seçip durağa ekleyebilirsiniz. En az üç, en fazla sekiz durağı seçin ve **Rotayı çöz ve karşılaştır** düğmesine basın.
+
+İsterseniz aşağıdaki gibi bir cümleyle de başlayabilirsiniz:
 
 > İstanbul'dan başlayıp Ankara, İzmir, Antalya ve Bursa'yı ziyaret eden en kısa turu bul. Klasik yöntemlerle kuantum yöntemini karşılaştır.
 
-Web laboratuvarı, desteklenen 14 şehrin WGS84 şehir merkezi GPS referans noktalarını kullanır; koordinatlar ve OpenStreetMap pinleri sonuç ekranında gösterilir. Büyük şehirlerde tek bir evrensel merkez olmadığı için bu noktalar kapı/adres değil, doğrulanabilir şehir merkezi referanslarıdır. Varsayılan modda mesafe hesabı Haversine (kuş uçuşu) kilometreleridir. Azure Maps proxy'si bağlandığında ise aynı çalışma gerçek sürüş mesafesi ve tahmini sürüş süresi matrisini kullanır; arayüz hangi kaynağın kullanıldığını açıkça yazar.
+`docs/data/turkiye-il-ilce-konumlari.json`, Türkiye’nin **81 ili ve 973 ilçesi** için WGS84 idari alan referans koordinatları içerir. Veri, [Turkey Administrative Divisions](https://github.com/open-admin-data/turkey-administrative-divisions) veri kümesinden türetilmiştir ve [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) atfıyla kullanılır. Bu noktalar bir ev kapısı, mağaza girişi veya doğrulanmış belediye merkezi değildir; idari alanlar için katalog referanslarıdır. Varsayılan modda mesafe hesabı Haversine (kuş uçuşu) kilometreleridir.
+
+Açık adres ve mağaza/işletme araması için Azure Maps proxy'si bağlanmalıdır. Kullanıcıya en fazla beş aday gösterilir ve doğru aday kullanıcı tarafından seçilir; belirsiz bir isim otomatik rotaya eklenmez. Proxy bağlandığında rota matrisi gerçek sürüş mesafesi ve tahmini süreyi kullanır; arayüz hangi veri modunda olduğunu açıkça yazar.
+
+Paylaşım için yerel HTML dosyasını değil, yalnızca şu canlı adresi kullanın: `https://fatmaturkmen244-spec.github.io/kuantum-hibrit-optimizasyon/`. Yerel dosya çift tıklanırsa sayfa bu genel adrese yönlenir; böylece bilgisayardaki klasör yolu paylaşılmaz.
 
 ## Gerçek yol verisi · Azure Maps proxy
 
@@ -122,6 +128,7 @@ GitHub Pages → FastAPI proxy → Azure Maps Search / Route Matrix
 Yeni API uçları:
 
 - `POST /maps/geocode`: adresi WGS84 konumuna çözer; rota için uygun nokta varsa onu tercih eder.
+- `POST /maps/places`: Türkiye kapsamındaki adres geocoding ile mağaza/işletme POI aramasını birleştirir. Yalnızca en fazla beş normalleştirilmiş aday döner; Azure Maps anahtarı veya sağlayıcı kimliği tarayıcıya gönderilmez.
 - `POST /maps/route-matrix`: 2–10 konum için yönlü gerçek yol mesafesi (metre) ve süre (saniye) matrisi döndürür.
 - `POST /maps/optimize`: önce yolu hesaplar, ardından kesin, klasik, kuantum-simülatör ve istenirse Q# çözücülerinin **tamamını aynı matriste** çalıştırır.
 
@@ -132,7 +139,9 @@ AZURE_MAPS_SUBSCRIPTION_KEY=...
 AZURE_MAPS_ENDPOINT=https://atlas.microsoft.com
 ```
 
-Ardından yalnızca proxy URL'sini `docs/runtime-config.js` içindeki `apiBaseUrl` alanına yazın. Bu URL gizli değildir; anahtar boşta kalır ve yalnızca sunucudadır. URL boş bırakılırsa laboratuvar bozulmaz, mevcut GPS + kuş uçuşu yedeği çalışır. Public API için varsayılan CORS listesi yalnız GitHub Pages ve yerel geliştirme adreslerini kapsar; dağıtımda gerekirse `CORS_ALLOW_ORIGINS` ile açıkça genişletin.
+Ardından yalnızca proxy URL'sini `docs/runtime-config.js` içindeki `apiBaseUrl` alanına yazın. Bu URL gizli değildir; anahtar boşta kalır ve yalnızca sunucudadır. URL boş bırakılırsa laboratuvar bozulmaz: 81 il/973 ilçe kataloğu ve kuş uçuşu yedeği çalışır, fakat açık adres/mağaza araması açıkça devre dışı görünür. Public API için varsayılan CORS listesi yalnız GitHub Pages ve yerel geliştirme adreslerini kapsar; dağıtımda gerekirse `CORS_ALLOW_ORIGINS` ile açıkça genişletin.
+
+> **Canlıya alma notu:** `/maps/places` tek bir kullanıcı aramasında adres ve POI için iki Azure isteği çalıştırır. Uygulama içindeki `MAPS_RATE_LIMIT_PER_MINUTE` yalnızca tek işlemli bir korumadır; herkese açık dağıtımda API Management, Front Door/WAF veya eşdeğeri bir katmanda IP/istemci başına kota ve istek sınırı zorunludur. Ham adres metinlerini uygulama günlüklerine yazmayın.
 
 Eski yerel arayüzdeki `/api/config` yardımcı endpoint'i varsayılan olarak kapalıdır; yalnız `ENABLE_LOCAL_CONFIG=true` ile ve `localhost` üzerinde çalışır. Public dağıtımda anahtarlar her zaman ortam değişkeni, Key Vault veya yönetilen kimlik üzerinden verilmelidir.
 

@@ -23,6 +23,8 @@ from .models import (
     MaxCutResponse,
     OptimizationRequest,
     OptimizationResponse,
+    PlaceSearchRequest,
+    PlaceSearchResponse,
     RoadOptimizationRequest,
     RouteMatrixRequest,
     RouteMatrixResponse,
@@ -137,6 +139,21 @@ async def geocode_location(body: GeocodeRequest, request: Request) -> GeocodeRes
     client = _maps_client(request)
     try:
         return await client.geocode(body.query, top=body.top)
+    except AzureMapsError as exc:
+        _raise_maps_error(exc)
+
+
+@app.post("/maps/places", response_model=PlaceSearchResponse)
+async def search_places(body: PlaceSearchRequest, request: Request) -> PlaceSearchResponse:
+    """Find Turkish addresses and stores without ever exposing a Maps credential.
+
+    The browser receives a small list of candidates and must let the person
+    choose one; ambiguous store or district names are never selected silently.
+    """
+
+    client = _maps_client(request)
+    try:
+        return await client.search_places(body.query, top=body.top)
     except AzureMapsError as exc:
         _raise_maps_error(exc)
 

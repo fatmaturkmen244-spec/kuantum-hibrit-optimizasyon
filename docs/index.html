@@ -3,19 +3,27 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Gerçek GPS referans noktaları üzerinde klasik ve kuantum yöntemlerini şeffaf biçimde karşılaştıran hibrit optimizasyon laboratuvarı.">
+  <meta name="description" content="Türkiye’nin 81 ili ve 973 ilçesiyle klasik ve kuantum yöntemlerini karşılaştıran hibrit optimizasyon laboratuvarı. Azure Maps bağlandığında adres ve işletme araması da eklenir.">
   <meta name="theme-color" content="#06101f">
   <meta property="og:locale" content="tr_TR">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="Quantum Route Lab">
-  <meta property="og:title" content="Quantum Route Lab | Gerçek GPS verisi üzerinde hibrit optimizasyon">
-  <meta property="og:description" content="Aynı rota problemini klasik ve kuantum yaklaşımlarıyla, doğrulanabilir şehir merkezi GPS noktaları üzerinde karşılaştıran açık deney.">
+  <meta property="og:title" content="Quantum Route Lab | Türkiye konumlarıyla hibrit optimizasyon">
+  <meta property="og:description" content="81 il ve 973 ilçeyi aynı rota probleminde klasik ve kuantum yaklaşımlarıyla karşılaştıran açık deney. Azure Maps bağlantısı adres ve işletme araması ekler.">
   <meta property="og:url" content="https://fatmaturkmen244-spec.github.io/kuantum-hibrit-optimizasyon/">
   <meta property="og:image" content="https://i.ytimg.com/vi/JZYghIdtH5U/hqdefault.jpg">
   <meta property="og:image:alt" content="Quantum Route Lab proje sunumu">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Quantum Route Lab | Hibrit Kuantum Optimizasyon">
-  <meta name="twitter:description" content="Gerçek GPS noktaları üzerinde klasik ve kuantum yöntemleriyle rota deneyi.">
+  <meta name="twitter:description" content="81 il ve 973 ilçe üzerinde klasik ve kuantum yöntemleriyle rota deneyi.">
+  <link rel="canonical" href="https://fatmaturkmen244-spec.github.io/kuantum-hibrit-optimizasyon/">
+  <script>
+    // Yerel dosyayı çift tıklayan ziyaretçiler kişisel klasör yollarını paylaşmasın.
+    // Canlı laboratuvar bu yüzden doğrudan GitHub Pages adresinde açılır.
+    if (window.location.protocol === "file:") {
+      window.location.replace("https://fatmaturkmen244-spec.github.io/kuantum-hibrit-optimizasyon/");
+    }
+  </script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha512-p4NxAoJBhIINfQkS0G9uY+G3JEC0wA6R8+ZP04XKcWQ+6OUFpSCe3NWosx5KYxNJPyy0mRZHI6DPD7+QAPaQ5w==" crossorigin="">
   <title>Quantum Route Lab</title>
   <style>
@@ -49,7 +57,7 @@
     }
 
     a { color: inherit; }
-    button, textarea { font: inherit; }
+    button, textarea, input { font: inherit; }
     .wrap { width: min(1160px, calc(100% - 36px)); margin: 0 auto; }
 
     header {
@@ -149,6 +157,32 @@
     .hint { margin: 14px 0 18px; color: var(--muted); font-size: .88rem; }
     .full { width: 100%; }
     .status { min-height: 26px; margin-top: 14px; color: var(--green); font-size: .9rem; }
+    .place-search { position: relative; margin-bottom: 16px; }
+    .place-input {
+      width: 100%; min-height: 52px; padding: 13px 16px; border: 1px solid var(--line);
+      border-radius: 14px; outline: none; color: var(--text); background: #081526;
+    }
+    .place-input:focus { border-color: rgba(55, 212, 245, .7); box-shadow: 0 0 0 4px rgba(55, 212, 245, .08); }
+    .place-results { display: grid; gap: 7px; margin-top: 9px; }
+    .place-results[hidden], .selected-stops:empty { display: none; }
+    .place-result {
+      display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; width: 100%;
+      padding: 11px 13px; border: 1px solid var(--line); border-radius: 12px; color: var(--text);
+      background: rgba(7, 20, 37, .8); text-align: left; cursor: pointer;
+    }
+    .place-result:hover { border-color: rgba(55, 212, 245, .65); background: rgba(18, 59, 81, .62); }
+    .place-result strong, .place-result small { display: block; }
+    .place-result small { margin-top: 2px; color: var(--muted); }
+    .place-result .place-kind { color: var(--cyan); font-size: .76rem; font-weight: 800; white-space: nowrap; }
+    .selected-stops { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 4px; }
+    .stop-chip {
+      display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 7px 9px 7px 11px;
+      border: 1px solid rgba(55, 212, 245, .35); border-radius: 999px; background: rgba(55, 212, 245, .1);
+      color: var(--text); font-size: .84rem;
+    }
+    .stop-chip button { display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 50%; color: var(--text); background: rgba(255, 255, 255, .14); cursor: pointer; }
+    .place-note { margin: 8px 0 0; color: var(--muted); font-size: .79rem; }
+    .place-note strong { color: var(--text); }
 
     .result-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 18px; }
     .badge { padding: 7px 11px; border-radius: 999px; color: var(--cyan); background: rgba(55, 212, 245, .1); font-size: .78rem; font-weight: 800; white-space: nowrap; }
@@ -273,18 +307,25 @@
     <section id="laboratuvar">
       <div class="wrap">
         <div class="eyebrow">Canlı optimizasyon laboratuvarı</div>
-        <h2>Gerçek GPS noktalarını kullan, yöntemi karşılaştır.</h2>
-        <p class="section-copy">Bu herkese açık sürüm 14 şehri WGS84 şehir merkezi GPS referans noktalarıyla eşler. Her konum sonucu OpenStreetMap'te doğrulanabilir. Azure Maps sunucusu bağlandığında aynı deney gerçek sürüş kilometresi ve süresiyle çalışır; bağlantı yoksa kuş uçuşu modu açıkça belirtilir.</p>
+        <h2>İlçe, adres veya mağaza seç; yöntemi karşılaştır.</h2>
+        <p class="section-copy">Türkiye’nin 81 ili ve 973 ilçesi bu sayfada WGS84 idari alan referans noktalarıyla hazırdır. Açık adres ve işletme araması, Azure Maps bağlantısı açık olduğunda sonuç listesinden seçilerek eklenir; yanlış bir konum asla sessizce tahmin edilmez. Bağlantı yoksa hesap kuş uçuşu modu olarak açıkça etiketlenir.</p>
 
         <div class="lab">
           <article class="card input-card">
-            <label for="problem">Çözmek istediğin problem</label>
+            <label for="place-query">1 · Konum ekle</label>
+            <div class="place-search">
+              <input class="place-input" id="place-query" type="search" autocomplete="off" spellcheck="false" placeholder="Örn. Kadıköy, İstanbul · Migros Kadıköy · Atatürk Bulvarı 12">
+              <div class="place-results" id="place-results" hidden aria-live="polite"></div>
+            </div>
+            <div class="selected-stops" id="selected-stops" aria-live="polite"></div>
+            <p class="place-note" id="place-note"><strong>İl ve ilçe:</strong> sayfada hazır. <strong>Adres ve mağaza:</strong> Azure Maps bağlantısı açıkken sonuçlardan doğru olanı sen seçersin. Rota için 3–8 durak ekleyebilirsin.</p>
+            <label for="problem">2 · İstersen rotayı cümleyle anlat</label>
             <textarea id="problem">İstanbul'dan başlayıp Ankara, İzmir, Antalya ve Bursa'yı ziyaret eden en kısa turu bul. Klasik yöntemlerle kuantum yöntemini karşılaştır.</textarea>
-            <p class="hint">Kullanılabilen şehirler: İstanbul, Ankara, İzmir, Antalya, Bursa, Konya, Adana, Gaziantep, Trabzon, Samsun, Kayseri, Diyarbakır, Elazığ, Eskişehir. Her sonuçta şehir merkezi referansı, enlem–boylam ve OpenStreetMap bağlantısı görünür.</p>
-            <button class="button primary full" id="solve">Cümleyi anla ve çöz</button>
-            <div class="status" id="status">Örnek hazır. Düğmeye basabilirsin; veri kaynağı sonucu açıkça gösterilecek.</div>
+            <p class="hint">Konum eklediğinde rota bu seçtiğin duraklarla çalışır. Konum seçmezsen örnek cümlede geçen şehirler kullanılır. Her sonuçta koordinat ve OpenStreetMap bağlantısı görünür.</p>
+            <button class="button primary full" id="solve">Rotayı çöz ve karşılaştır</button>
+            <div class="status" id="status">İlçe, adres veya mağaza yazıp sonuçtan seçebilirsin. Örnek rota da çalışmaya hazır.</div>
             <div class="location-panel" id="locations" hidden aria-live="polite"></div>
-            <div class="truth"><strong>Açık gösterim:</strong> Konumlar doğrulanabilir şehir merkezi GPS referanslarıdır; haritadaki çizgi istasyonları şematik olarak bağlar. Bu sayfa kuantum-esinli olasılık modelini çalıştırır. “Q# devresi çalıştı” iddiası yalnızca tam Python/QDK uygulamasında ve kanıt üretildiğinde gösterilir.</div>
+            <div class="truth"><strong>Açık gösterim:</strong> İl ve ilçe noktaları idari alan referanslarıdır; açık adres ve işletmelerde sağlayıcının döndürdüğü konumu sen seçersin. Haritadaki çizgi istasyonları şematiktir. Bu sayfa kuantum-esinli olasılık modelini çalıştırır. “Q# devresi çalıştı” iddiası yalnızca tam Python/QDK uygulamasında ve kanıt üretildiğinde gösterilir.</div>
           </article>
 
           <article class="card results-card" aria-live="polite">
@@ -376,7 +417,7 @@
   <footer>
     <div class="wrap footer-row">
       <span>Quantum Route Lab · Açık hibrit optimizasyon laboratuvarı</span>
-      <a href="https://github.com/fatmaturkmen244-spec/kuantum-hibrit-optimizasyon">Kaynak kod ve tam Q# uygulaması ↗</a>
+      <span><a href="https://github.com/open-admin-data/turkey-administrative-divisions" target="_blank" rel="noopener noreferrer">Türkiye il/ilçe verisi · CC BY 4.0 ↗</a> · <a href="https://github.com/fatmaturkmen244-spec/kuantum-hibrit-optimizasyon">Kaynak kod ve tam Q# uygulaması ↗</a></span>
     </div>
   </footer>
 

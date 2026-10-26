@@ -32,6 +32,11 @@
   let routeMap;
   let routeLayer;
   let latestShareSummary = "";
+  let adminLocations = [];
+  let selectedStops = [];
+  let placeSearchTimer;
+  let placeSearchAbort;
+  let placeSearchVersion = 0;
 
   // V2 ağ bölme senaryosu: ağırlık, iki iş arasındaki iş bağımlılığının gücüdür.
   // Kullanıcının metni yalnızca bu açık, görünür senaryodaki düğümleri seçer.
@@ -58,6 +63,12 @@
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replaceAll("ı", "i").replaceAll("ş", "s").replaceAll("ğ", "g")
     .replaceAll("ü", "u").replaceAll("ö", "o").replaceAll("ç", "c");
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, character => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;"
+    })[character]);
+  }
 
   function permutations(values) {
     if (values.length <= 1) return [values.slice()];
@@ -97,7 +108,7 @@
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        locations: cities.map(city => ({
+        locations: routeRequestLocations(cities).map(city => ({
           name: city.name,
           point: { latitude: city.lat, longitude: city.lon }
         })),
@@ -117,6 +128,20 @@
       durationSeconds: payload.duration_seconds.map(row => row.map(Number)),
       traffic: payload.traffic || "historical"
     };
+  }
+
+  function routeRequestLocations(cities) {
+    const used = new Map();
+    return cities.map((city, index) => {
+      const base = String(city.routeName || city.name || `Durak ${index + 1}`)
+        .trim().slice(0, 52) || `Durak ${index + 1}`;
+      const count = (used.get(base) || 0) + 1;
+      used.set(base, count);
+      // Azure Maps matrisi benzersiz isim ister. Aynı zincirin iki şubesi
+      // adresiyle, gerekirse sıra numarasıyla ayrı rota durakları olur.
+      const suffix = count > 1 ? ` · ${count}` : "";
+      return { ...city, name: `${base.slice(0, 60 - suffix.length)}${suffix}` };
+    });
   }
 
   function routeCost(route, matrix) {
@@ -208,7 +233,282 @@
     const source = normalize(text);
     return Object.entries(GPS_CITIES)
       .filter(([key]) => source.includes(key))
-      .map(([key, city]) => ({ key, ...city }));
+      .map(([key, city]) => ({ key, ...city, kind: "İl", source: "WGS84 şehir merkezi referansı" }));
+  }
+
+  function validPoint(lat, lon) {
+    return Number.isFinite(lat) && Number.isFinite(lon)
+      && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+  }
+
+  // Kaynak veri, bazı Türkçe dotless-i karakterlerini ASCII biçiminde verir.
+  // Arama normalizasyonu bunu zaten tolere eder; bu küçük görünüm düzeltmeleri
+  // ise ziyaretçiye doğal Türkçe ilçe adını gösterir.
+  const CATALOG_NAME_OVERRIDES = Object.freeze({
+    TUR001011: "Sarıçam", TUR002001: "Adıyaman", TUR003014: "Kızılören",
+    TUR006018: "Kızılcahamam", TUR018007: "Kızılırmak", TUR026011: "Sarıcakaya",
+    TUR034023: "Kadıköy", TUR034030: "Sarıyer", TUR036006: "Sarıkamış",
+    TUR038011: "Sarıoğlan", TUR038012: "Sarız", TUR042020: "Kadınhanı",
+    TUR045011: "Sarıgöl", TUR047004: "Kızıltepe", TUR050001: "Acıgöl",
+    TUR055010: "İlkadım", TUR066007: "Kadışehri", TUR066009: "Sarıkaya",
+    TUR068007: "Sarıyahşi", TUR070006: "Sarıveliler",
+    TUR003: "Afyonkarahisar", TUR026: "Eskişehir", TUR038: "Kayseri",
+    TUR045: "Manisa", TUR047: "Mardin", TUR050: "Nevşehir", TUR080: "Osmaniye"
+  });
+
+  function catalogDisplayName(value, id) {
+    const cleaned = String(value || "").normalize("NFC").replaceAll("\u0307", "");
+    return CATALOG_NAME_OVERRIDES[id] || cleaned;
+  }
+
+  function localPlace({ id, name, provinceName = "", lat, lon, kind }) {
+    const latitude = Number(lat);
+    const longitude = Number(lon);
+    if (!id || !name || !validPoint(latitude, longitude)) return null;
+    const displayName = kind === "İlçe" ? `${name}, ${provinceName}` : name;
+    return {
+      key: `catalog:${kind}:${id}`,
+      name: displayName,
+      lat: latitude,
+      lon: longitude,
+      kind,
+      reference: kind === "İlçe"
+        ? `${provinceName} · ilçe idari alan referans noktası`
+        : "il idari alan referans noktası",
+      source: "Türkiye il/ilçe kataloğu"
+    };
+  }
+
+  async function loadAdminCatalog() {
+    const note = document.getElementById("place-note");
+    try {
+      const response = await fetch("./data/turkiye-il-ilce-konumlari.json", { cache: "force-cache" });
+      if (!response.ok) throw new Error("Katalog yüklenemedi.");
+      const payload = await response.json();
+      const provinces = Array.isArray(payload.provinces) ? payload.provinces : [];
+      const districts = Array.isArray(payload.districts) ? payload.districts : [];
+      adminLocations = [
+        ...provinces.map(record => localPlace({
+          ...record, name: catalogDisplayName(record.name, record.id), kind: "İl"
+        })),
+        ...districts.map(record => localPlace({
+          ...record,
+          name: catalogDisplayName(record.name, record.id),
+          provinceName: catalogDisplayName(record.provinceName, record.provinceId),
+          kind: "İlçe"
+        }))
+      ].filter(Boolean);
+      if (adminLocations.length < 1_000) throw new Error("Katalog eksik.");
+      note.innerHTML = "<strong>81 il ve 973 ilçe hazır.</strong> İl/ilçe araması bu sayfada çalışır. <strong>Adres ve mağaza:</strong> Azure Maps bağlantısı açıksa sonuçlardan doğru olanı sen seçersin. Rota için 3–8 durak ekleyebilirsin.";
+    } catch {
+      // Katalog hatası rota laboratuvarını bozmaz; mevcut şehir örneği yine çalışır.
+      note.textContent = "İlçe kataloğu yüklenemedi. Örnek şehir rotası yine çalışır; adres ve mağaza araması için Azure Maps bağlantısı gerekir.";
+    }
+  }
+
+  function placeSearchTerms(value) {
+    return normalize(value).replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
+  }
+
+  function findLocalPlaces(query) {
+    const terms = placeSearchTerms(query);
+    if (!terms.length || !adminLocations.length) return [];
+    const compact = terms.join(" ");
+    return adminLocations
+      .map(place => {
+        const name = placeSearchTerms(place.name).join(" ");
+        const reference = normalize(place.reference);
+        const exact = name === compact;
+        const starts = name.startsWith(compact);
+        const allTerms = terms.every(term => name.includes(term) || reference.includes(term));
+        if (!exact && !starts && !allTerms) return null;
+        return { place, score: exact ? 30 : starts ? 20 : 10 };
+      })
+      .filter(Boolean)
+      .sort((first, second) => second.score - first.score || first.place.name.localeCompare(second.place.name, "tr"))
+      .slice(0, 5)
+      .map(item => item.place);
+  }
+
+  function isExactLocalMatch(query, places) {
+    const compact = placeSearchTerms(query).join(" ");
+    return places.some(place => placeSearchTerms(place.name).join(" ") === compact);
+  }
+
+  function remotePlace(candidate, index) {
+    const latitude = Number(candidate?.point?.latitude);
+    const longitude = Number(candidate?.point?.longitude);
+    const label = String(candidate?.label || "").trim();
+    if (!label || !validPoint(latitude, longitude)) return null;
+    const kind = candidate.kind === "poi" ? "Mağaza / işletme" : "Adres / konum";
+    const detail = String(candidate.address || candidate.category || candidate.reference || "Azure Maps sonucu").trim();
+    const routeName = `${label} · ${detail}`.slice(0, 60);
+    return {
+      key: `azure:${latitude.toFixed(6)}:${longitude.toFixed(6)}:${normalize(label)}:${index}`,
+      name: label.slice(0, 180),
+      lat: latitude,
+      lon: longitude,
+      kind,
+      reference: detail.slice(0, 240),
+      routeName,
+      source: "Azure Maps"
+    };
+  }
+
+  function mergePlaces(first, second) {
+    const seen = new Set();
+    return [...first, ...second].filter(place => {
+      const key = `${normalize(place.name)}:${place.lat.toFixed(4)}:${place.lon.toFixed(4)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 5);
+  }
+
+  function placeKindText(place) {
+    return place.kind || "Konum";
+  }
+
+  function renderPlaceResults(places, message = "") {
+    const host = document.getElementById("place-results");
+    host.replaceChildren();
+    if (!places.length && !message) {
+      host.hidden = true;
+      return;
+    }
+    host.hidden = false;
+    if (message) {
+      const note = document.createElement("small");
+      note.className = "place-note";
+      note.textContent = message;
+      host.appendChild(note);
+    }
+    places.forEach(place => {
+      const button = document.createElement("button");
+      button.className = "place-result";
+      button.type = "button";
+      const details = document.createElement("span");
+      const title = document.createElement("strong");
+      title.textContent = place.name;
+      const detail = document.createElement("small");
+      detail.textContent = `${place.reference} · ${place.lat.toFixed(4)}°, ${place.lon.toFixed(4)}°`;
+      const kind = document.createElement("span");
+      kind.className = "place-kind";
+      kind.textContent = placeKindText(place);
+      details.append(title, detail);
+      button.append(details, kind);
+      button.addEventListener("click", () => addSelectedStop(place));
+      host.appendChild(button);
+    });
+  }
+
+  function renderSelectedStops() {
+    const host = document.getElementById("selected-stops");
+    host.replaceChildren();
+    selectedStops.forEach((place, index) => {
+      const chip = document.createElement("span");
+      chip.className = "stop-chip";
+      const label = document.createElement("span");
+      label.textContent = `${index + 1}. ${place.name}`;
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.title = `${place.name} durağını kaldır`;
+      remove.setAttribute("aria-label", `${place.name} durağını kaldır`);
+      remove.textContent = "×";
+      remove.addEventListener("click", () => {
+        selectedStops = selectedStops.filter(stop => stop.key !== place.key);
+        renderSelectedStops();
+      });
+      chip.append(label, remove);
+      host.appendChild(chip);
+    });
+  }
+
+  function setPlaceStatus(message, color = "var(--muted)") {
+    const status = document.getElementById("status");
+    status.style.color = color;
+    status.textContent = message;
+  }
+
+  function addSelectedStop(place) {
+    if (selectedStops.some(stop => stop.key === place.key)) {
+      setPlaceStatus(`${place.name} zaten duraklara eklendi.`, "var(--amber)");
+      return;
+    }
+    if (selectedStops.length >= 8) {
+      setPlaceStatus("Rota laboratuvarı için en fazla 8 durak ekleyebilirsin.", "var(--amber)");
+      return;
+    }
+    selectedStops = [...selectedStops, place];
+    renderSelectedStops();
+    document.getElementById("place-query").value = "";
+    renderPlaceResults([]);
+    setPlaceStatus(`${place.name} eklendi. En az 3 durak seçip rotayı çözebilirsin.`, "var(--green)");
+  }
+
+  async function fetchRemotePlaces(query, signal) {
+    if (!API_BASE_URL) return [];
+    const response = await fetch(`${API_BASE_URL}/maps/places`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, top: 5 }),
+      signal
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.detail || "Konum servisi yanıt vermedi.");
+    return Array.isArray(payload.candidates)
+      ? payload.candidates.map(remotePlace).filter(Boolean)
+      : [];
+  }
+
+  async function searchPlaces(query) {
+    const version = ++placeSearchVersion;
+    const cleaned = String(query || "").trim();
+    if (cleaned.length < 2) {
+      renderPlaceResults([]);
+      return;
+    }
+    const local = findLocalPlaces(cleaned);
+    if (isExactLocalMatch(cleaned, local)) {
+      renderPlaceResults(local, "Bu ilçe/il sayfadaki doğrulanabilir idari alan kataloğundan geldi.");
+      return;
+    }
+    if (!API_BASE_URL) {
+      const message = local.length
+        ? "İl/ilçe eşleşmeleri gösteriliyor. Mağaza veya açık adres araması için Azure Maps bağlantısı henüz yayımlanmadı."
+        : "Bu ifade il/ilçe kataloğunda yok. Mağaza ve açık adres araması için Azure Maps bağlantısı henüz yayımlanmadı.";
+      renderPlaceResults(local, message);
+      return;
+    }
+    if (placeSearchAbort) placeSearchAbort.abort();
+    placeSearchAbort = new AbortController();
+    renderPlaceResults(local, "Adres ve işletme eşleşmeleri güvenli konum servisinden aranıyor…");
+    try {
+      const remote = await fetchRemotePlaces(cleaned, placeSearchAbort.signal);
+      if (version !== placeSearchVersion) return;
+      renderPlaceResults(mergePlaces(local, remote), remote.length
+        ? "Doğru sonucu listeden seç. Sağlayıcı konumu otomatik olarak rotaya eklenmez."
+        : "Bu arama için doğrulanmış bir sonuç bulunamadı; daha ayrıntılı ilçe veya adres eklemeyi dene.");
+    } catch (error) {
+      if (error?.name === "AbortError" || version !== placeSearchVersion) return;
+      renderPlaceResults(local, `Konum servisi şu an yanıt vermedi. ${error instanceof Error ? error.message : ""}`.trim());
+    }
+  }
+
+  function setupPlacePicker() {
+    const input = document.getElementById("place-query");
+    input.addEventListener("input", () => {
+      window.clearTimeout(placeSearchTimer);
+      const value = input.value;
+      placeSearchTimer = window.setTimeout(() => searchPlaces(value), 280);
+    });
+    input.addEventListener("keydown", event => {
+      if (event.key === "Escape") {
+        input.value = "";
+        renderPlaceResults([]);
+      }
+    });
+    loadAdminCatalog();
   }
 
   function formatKm(value) {
@@ -233,14 +533,28 @@
   function renderLocations(cities, result) {
     const panel = document.getElementById("locations");
     panel.hidden = false;
-    panel.innerHTML = result.route.map((cityIndex, order) => {
+    panel.replaceChildren();
+    result.route.forEach((cityIndex, order) => {
       const city = cities[cityIndex];
-      return `<article class="location-card">
-        <span class="location-order">${order + 1}</span>
-        <div><strong>${city.name}</strong><span>WGS84 · ${city.reference} · ${city.lat.toFixed(4)}° N, ${city.lon.toFixed(4)}° E</span></div>
-        <a href="${osmLink(city)}" target="_blank" rel="noopener noreferrer">Haritada aç ↗</a>
-      </article>`;
-    }).join("");
+      const card = document.createElement("article");
+      card.className = "location-card";
+      const orderLabel = document.createElement("span");
+      orderLabel.className = "location-order";
+      orderLabel.textContent = String(order + 1);
+      const copy = document.createElement("div");
+      const title = document.createElement("strong");
+      title.textContent = city.name;
+      const detail = document.createElement("span");
+      detail.textContent = `WGS84 · ${city.reference} · ${city.lat.toFixed(4)}° N, ${city.lon.toFixed(4)}° E`;
+      const link = document.createElement("a");
+      link.href = osmLink(city);
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = "Haritada aç ↗";
+      copy.append(title, detail);
+      card.append(orderLabel, copy, link);
+      panel.appendChild(card);
+    });
   }
 
   function drawFallback(cities, result) {
@@ -261,7 +575,7 @@
     const nodes = cities.map((city, index) => `
       <circle cx="${x(city.lon)}" cy="${y(city.lat)}" r="10" fill="#7566ff" stroke="#fff" stroke-width="2"/>
       <text x="${x(city.lon)}" y="${y(city.lat) + 4}" fill="#fff" font-size="11" font-weight="700" text-anchor="middle">${result.route.indexOf(index) + 1}</text>
-      <text x="${x(city.lon)}" y="${y(city.lat) - 18}" fill="#eaf0ff" font-size="13" text-anchor="middle">${city.name}</text>`).join("");
+      <text x="${x(city.lon)}" y="${y(city.lat) - 18}" fill="#eaf0ff" font-size="13" text-anchor="middle">${escapeSvgText(city.name)}</text>`).join("");
     svg.innerHTML = `<polyline points="${points}" fill="none" stroke="#37d4f5" stroke-width="4" stroke-linejoin="round"/>${nodes}`;
     svg.hidden = false;
     document.getElementById("map").hidden = true;
@@ -296,8 +610,8 @@
         fillColor: "#7566ff",
         fillOpacity: 1
       });
-      marker.bindTooltip(`${order + 1}. ${city.name}`, { direction: "top", offset: [0, -8] });
-      marker.bindPopup(`<strong>${order + 1}. ${city.name}</strong><br>WGS84 şehir merkezi · ${city.reference}<br>${city.lat.toFixed(4)}° N, ${city.lon.toFixed(4)}° E<br><a href="${osmLink(city)}" target="_blank" rel="noopener noreferrer">OpenStreetMap'te aç ↗</a>`);
+      marker.bindTooltip(`${order + 1}. ${escapeHtml(city.name)}`, { direction: "top", offset: [0, -8] });
+      marker.bindPopup(`<strong>${order + 1}. ${escapeHtml(city.name)}</strong><br>WGS84 · ${escapeHtml(city.reference)}<br>${city.lat.toFixed(4)}° N, ${city.lon.toFixed(4)}° E<br><a href="${osmLink(city)}" target="_blank" rel="noopener noreferrer">OpenStreetMap'te aç ↗</a>`);
       routeLayer.addLayer(marker);
     });
     routeMap.fitBounds(window.L.latLngBounds(points), { padding: [28, 28], maxZoom: 7 });
@@ -313,7 +627,7 @@
       const duration = durationSeconds
         ? ` · ${formatDuration(durationSeconds[from][to] / 60)}`
         : "";
-      return `<div class="leg"><span>${index + 1}. ${cities[from].name} → ${cities[to].name}</span><strong>${formatKm(matrix[from][to])}${duration}</strong></div>`;
+      return `<div class="leg"><span>${index + 1}. ${escapeHtml(cities[from].name)} → ${escapeHtml(cities[to].name)}</span><strong>${formatKm(matrix[from][to])}${duration}</strong></div>`;
     }).join("");
   }
 
@@ -329,7 +643,7 @@
     return [
       "Quantum Route Lab üzerinde yeni bir rota deneyi yaptım.",
       "",
-      `Şehirler: ${cities.map(city => city.name).join(", ")}`,
+      `Duraklar: ${cities.map(city => city.name).join(", ")}`,
       `En iyi rota: ${routeNames(cities, result)}`,
       `Mesafe: ${formatKm(result.cost)} · ${durationLabel}: ${formatDuration(minutes)}`,
       `Veri modu: ${dataMode}.`,
@@ -676,6 +990,8 @@
     }
   });
 
+  setupPlacePicker();
+
   const previousButton = document.getElementById("solve");
   const solveButton = previousButton.cloneNode(true);
   previousButton.replaceWith(solveButton);
@@ -685,15 +1001,20 @@
   solveButton.addEventListener("click", async () => {
     const status = document.getElementById("status");
     document.getElementById("share-card").hidden = true;
-    let cities = parseCities(document.getElementById("problem").value);
+    const usesSelectedStops = selectedStops.length > 0;
+    let cities = usesSelectedStops ? selectedStops.slice() : parseCities(document.getElementById("problem").value);
     if (cities.length < 3) {
       status.style.color = "var(--red)";
-      status.textContent = "En az üç tanınan şehir yazmalısın.";
+      status.textContent = usesSelectedStops
+        ? "Seçtiğin duraklarla rota oluşturmak için en az üç konum eklemelisin."
+        : "En az üç tanınan şehir yazmalı veya yukarıdan üç konum seçmelisin.";
       return;
     }
     const cityNotice = cities.length > 8
-      ? "Tarayıcı güvenli çalışma için ilk 8 şehri kullandı."
-      : `${cities.length} şehir WGS84 şehir merkezi GPS referansıyla eşleşti.`;
+      ? "Tarayıcı güvenli çalışma için ilk 8 durağı kullandı."
+      : usesSelectedStops
+        ? `${cities.length} seçili durak WGS84 koordinatlarıyla eşleşti.`
+        : `${cities.length} şehir WGS84 şehir merkezi GPS referansıyla eşleşti.`;
     if (cities.length > 8) {
       cities = cities.slice(0, 8);
     }
@@ -735,8 +1056,8 @@
       const minutes = durationMinutes(best.route, matrix, durationSeconds);
 
       document.getElementById("result-title").textContent = roadMode
-        ? `${cities.length} şehir, ${results.length} yöntem, Azure Maps yol verisi`
-        : `${cities.length} şehir, ${results.length} yöntem, doğrulanabilir GPS noktaları`;
+        ? `${cities.length} durak, ${results.length} yöntem, Azure Maps yol verisi`
+        : `${cities.length} durak, ${results.length} yöntem, doğrulanabilir GPS noktaları`;
       document.getElementById("best-distance-label").textContent = roadMode
         ? "Gerçek sürüş mesafesi"
         : "Kuş uçuşu mesafe";
@@ -747,9 +1068,12 @@
       document.getElementById("best-duration").textContent = formatDuration(minutes);
       document.getElementById("best-method").textContent = best.name;
       document.getElementById("state-space").textContent = tours.toLocaleString("tr-TR");
+      const locationSource = usesSelectedStops
+        ? "Konum: seçilen il/ilçe idari alan referansı veya Azure Maps sonucu"
+        : "Konum: WGS84 şehir merkezi referansları";
       document.getElementById("map-source").textContent = roadMode
-        ? `${renderedMap ? "Harita: OpenStreetMap · " : "Harita yedek görünümü · "}Konum: WGS84 şehir merkezi referansları · Hesap: Azure Maps gerçek sürüş mesafesi ve süresi (${roadTraffic} trafik) · Çizgi istasyonlar arası şematiktir.`
-        : `${renderedMap ? "Harita: OpenStreetMap · " : "Harita yedek görünümü · "}Konum: WGS84 şehir merkezi referansları (her nokta OpenStreetMap'te açılabilir) · Mesafe: kuş uçuşu Haversine km · Süre: ${REFERENCE_SPEED_KMH} km/sa referans hız · Gerçek sürüş ve trafik verisi değildir.`;
+        ? `${renderedMap ? "Harita: OpenStreetMap · " : "Harita yedek görünümü · "}${locationSource} · Hesap: Azure Maps gerçek sürüş mesafesi ve süresi (${roadTraffic} trafik) · Çizgi istasyonlar arası şematiktir.`
+        : `${renderedMap ? "Harita: OpenStreetMap · " : "Harita yedek görünümü · "}${locationSource} (her nokta OpenStreetMap'te açılabilir) · Mesafe: kuş uçuşu Haversine km · Süre: ${REFERENCE_SPEED_KMH} km/sa referans hız · Gerçek sürüş ve trafik verisi değildir.`;
       renderLocations(cities, best);
       renderLegs(cities, best, matrix, durationSeconds);
       const shareSummary = buildShareSummary(cities, best, roadMode, minutes);
@@ -758,10 +1082,10 @@
         `${best.name} ile ${formatKm(best.cost)} · ${roadMode ? "Azure Maps gerçek sürüş verisi" : "WGS84 GPS + kuş uçuşu hesabı"}`
       );
       document.getElementById("methods").innerHTML = results.map(result => `
-        <div class="method ${result.cls}"><strong>${result.name}</strong>
+        <div class="method ${result.cls}"><strong>${escapeHtml(result.name)}</strong>
           <small>${formatKm(result.cost)} ${roadMode ? "gerçek sürüş" : "kuş uçuşu"} · ${result.ms.toFixed(2)} ms</small>
-          <small>${result.route.map(index => cities[index].name).join(" → ")} → ${cities[result.route[0]].name}</small>
-          ${result.detail ? `<small>${result.detail}</small>` : ""}
+          <small>${result.route.map(index => escapeHtml(cities[index].name)).join(" → ")} → ${escapeHtml(cities[result.route[0]].name)}</small>
+          ${result.detail ? `<small>${escapeHtml(result.detail)}</small>` : ""}
         </div>`).join("");
     } catch (error) {
       status.style.color = "var(--red)";

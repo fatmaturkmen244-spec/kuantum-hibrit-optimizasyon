@@ -20,12 +20,18 @@ from .models import (
     GeoPoint,
     GeocodeCandidate,
     GeocodeResponse,
+    PlaceCandidate,
+    PlaceSearchResponse,
     RouteLocation,
     RouteMatrixResponse,
 )
 
 
 AZURE_MAPS_PUBLIC_ENDPOINT = "https://atlas.microsoft.com"
+# WGS84 rectangle covering Türkiye and a small boundary margin. It is a
+# query-compatible geobias for free-form Geocoding; returned candidates are
+# still explicitly country-checked before they reach the browser.
+TURKIYE_BBOX = "25.5,35.6,45.1,42.4"
 
 
 class AzureMapsError(RuntimeError):
@@ -51,6 +57,7 @@ class AzureMapsSettings:
     subscription_key: str
     endpoint: str = AZURE_MAPS_PUBLIC_ENDPOINT
     geocode_api_version: str = "2026-01-01"
+    poi_search_api_version: str = "1.0"
     route_api_version: str = "2025-01-01"
     timeout_seconds: float = 10.0
 
@@ -158,10 +165,86 @@ class AzureMapsClient:
                 "api-version": self.settings.geocode_api_version,
                 "query": query,
                 "top": top,
+                "bbox": TURKIYE_BBOX,
             },
             headers={"Accept-Language": "tr-TR"},
         )
-        return _parse_geocode_response(data, query)
+        return _parse_geocode_response(data, query, country_code="TR")
+
+    async def search_places(self, query: str, *, top: int = 5) -> PlaceSearchResponse:
+        """Return a small, Turkey-only blend of address and POI candidates.
+
+        Azure Maps' current Geocoding endpoint deliberately excludes POIs, so
+        address geocoding and POI type-ahead are requested independently.  A
+        temporary failure of one source still leaves the other source usable;
+        only a total outage is reported to the caller.
+        """
+
+        # Keep the two small source requests sequential to reduce burst rate
+        # on a public proxy. A partial source failure is still handled below,
+        # so POI search remains useful when geocoding temporarily fails (and
+        # vice versa).
+        try:
+            geocode_data: dict[str, Any] | Exception = await self._request_json(
+                "GET",
+                "/geocode",
+                params={
+                    "api-version": self.settings.geocode_api_version,
+                    "query": query,
+                    "top": top,
+                    "bbox": TURKIYE_BBOX,
+                },
+                headers={"Accept-Language": "tr-TR"},
+            )
+        except Exception as exc:  # normalized below; no upstream detail leaks
+            geocode_data = exc
+        try:
+            poi_data: dict[str, Any] | Exception = await self._request_json(
+                "GET",
+                "/search/poi/json",
+                params={
+                    "api-version": self.settings.poi_search_api_version,
+                    "query": query,
+                    "limit": top,
+                    "countrySet": "TR",
+                    "typeahead": "true",
+                },
+                headers={"Accept-Language": "tr-TR"},
+            )
+        except Exception as exc:  # normalized below; no upstream detail leaks
+            poi_data = exc
+
+        failures: list[AzureMapsError] = []
+        successful_sources = 0
+        address_candidates: list[PlaceCandidate] = []
+        poi_candidates: list[PlaceCandidate] = []
+
+        if isinstance(geocode_data, Exception):
+            failures.append(_as_maps_error(geocode_data))
+        else:
+            try:
+                geocoded = _parse_geocode_response(geocode_data, query, country_code="TR")
+                address_candidates = [_place_from_geocode(candidate) for candidate in geocoded.candidates]
+                successful_sources += 1
+            except AzureMapsError as exc:
+                failures.append(exc)
+
+        if isinstance(poi_data, Exception):
+            failures.append(_as_maps_error(poi_data))
+        else:
+            try:
+                poi_candidates = _parse_poi_response(poi_data, query)
+                successful_sources += 1
+            except AzureMapsError as exc:
+                failures.append(exc)
+
+        if successful_sources == 0:
+            raise _preferred_place_error(failures)
+
+        return PlaceSearchResponse(
+            query=query,
+            candidates=_merge_place_candidates(poi_candidates, address_candidates, top=top),
+        )
 
     async def route_matrix(
         self,
@@ -180,7 +263,9 @@ class AzureMapsClient:
         return _parse_route_matrix(data, locations, traffic=traffic)
 
 
-def _parse_geocode_response(data: dict[str, Any], query: str) -> GeocodeResponse:
+def _parse_geocode_response(
+    data: dict[str, Any], query: str, *, country_code: str | None = None
+) -> GeocodeResponse:
     features = data.get("features")
     if not isinstance(features, list):
         raise AzureMapsUpstreamError("Adres çözümü geçerli konum sonuçları döndürmedi.")
@@ -188,6 +273,8 @@ def _parse_geocode_response(data: dict[str, Any], query: str) -> GeocodeResponse
     candidates: list[GeocodeCandidate] = []
     for feature in features:
         if not isinstance(feature, dict):
+            continue
+        if country_code and _feature_country_code(feature) != country_code:
             continue
         display_point = _point_from_feature(feature)
         if display_point is None:
@@ -218,6 +305,194 @@ def _parse_geocode_response(data: dict[str, Any], query: str) -> GeocodeResponse
             )
         )
     return GeocodeResponse(candidates=candidates)
+
+
+def _as_maps_error(exc: Exception) -> AzureMapsError:
+    if isinstance(exc, AzureMapsError):
+        return exc
+    return AzureMapsUpstreamError("Konum hizmeti isteği tamamlanamadı.")
+
+
+def _preferred_place_error(failures: Sequence[AzureMapsError]) -> AzureMapsError:
+    for failure in failures:
+        if isinstance(failure, AzureMapsRateLimitError):
+            return failure
+    if failures:
+        return failures[0]
+    return AzureMapsUpstreamError("Konum hizmeti isteği tamamlanamadı.")
+
+
+def _feature_country_code(feature: dict[str, Any]) -> str | None:
+    properties = feature.get("properties")
+    properties = properties if isinstance(properties, dict) else {}
+    address = properties.get("address")
+    address = address if isinstance(address, dict) else {}
+    return _country_code_from_address(address)
+
+
+def _country_code_from_address(address: dict[str, Any]) -> str | None:
+    country_region = address.get("countryRegion")
+    if isinstance(country_region, dict):
+        value = country_region.get("ISO", country_region.get("iso"))
+    else:
+        value = address.get("countryCode")
+    if not isinstance(value, str):
+        return None
+    normalized = value.strip().upper()
+    if normalized == "TUR":
+        return "TR"
+    return normalized or None
+
+
+def _place_from_geocode(candidate: GeocodeCandidate) -> PlaceCandidate:
+    return PlaceCandidate(
+        label=_bounded_text(candidate.label, 300) or "Konum",
+        point=candidate.point,
+        kind="address",
+        reference="geocode",
+        display_point=candidate.display_point,
+        address=_bounded_text(candidate.address, 500),
+        confidence=_bounded_text(candidate.confidence, 40),
+        uses_route_point=candidate.uses_route_point,
+    )
+
+
+def _parse_poi_response(data: dict[str, Any], query: str) -> list[PlaceCandidate]:
+    results = data.get("results")
+    if not isinstance(results, list):
+        raise AzureMapsUpstreamError("Mağaza araması geçerli konum sonuçları döndürmedi.")
+
+    candidates: list[PlaceCandidate] = []
+    for result in results:
+        if not isinstance(result, dict) or result.get("type") != "POI":
+            continue
+        poi = result.get("poi")
+        poi = poi if isinstance(poi, dict) else {}
+        address = result.get("address")
+        address = address if isinstance(address, dict) else {}
+        # The POI request is explicitly countrySet=TR.  Reject an explicit,
+        # contradictory country marker as a defensive second check.
+        country_code = _country_code_from_address(address)
+        if country_code != "TR":
+            continue
+
+        display_point = _point_from_lat_lon(result.get("position"))
+        if display_point is None:
+            continue
+        route_point = _poi_route_point(result) or display_point
+        formatted_address = _formatted_address(address)
+        label = _bounded_text(poi.get("name"), 300) or formatted_address or query
+        candidates.append(
+            PlaceCandidate(
+                label=label,
+                point=route_point,
+                kind="poi",
+                reference="poi",
+                display_point=display_point,
+                address=formatted_address,
+                category=_poi_category(poi),
+                score=_optional_finite_float(result.get("score")),
+                uses_route_point=route_point != display_point,
+            )
+        )
+    return candidates
+
+
+def _merge_place_candidates(
+    poi_candidates: Sequence[PlaceCandidate],
+    address_candidates: Sequence[PlaceCandidate],
+    *,
+    top: int,
+) -> list[PlaceCandidate]:
+    """Keep POIs first while removing only exact repeated source entries."""
+
+    candidates: list[PlaceCandidate] = []
+    seen: set[tuple[str, float, float]] = set()
+    for candidate in [*poi_candidates, *address_candidates]:
+        key = (
+            candidate.label.strip().casefold(),
+            round(candidate.point.latitude, 6),
+            round(candidate.point.longitude, 6),
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+        candidates.append(candidate)
+        if len(candidates) == top:
+            break
+    return candidates
+
+
+def _formatted_address(address: dict[str, Any]) -> str | None:
+    return _bounded_text(
+        address.get("freeformAddress") or address.get("formattedAddress"), 500
+    )
+
+
+def _poi_category(poi: dict[str, Any]) -> str | None:
+    categories = poi.get("categories")
+    if isinstance(categories, list):
+        for category in categories:
+            text = _bounded_text(category, 160)
+            if text:
+                return text
+    classifications = poi.get("classifications")
+    if isinstance(classifications, list):
+        for classification in classifications:
+            if not isinstance(classification, dict):
+                continue
+            text = _bounded_text(classification.get("name"), 160)
+            if text:
+                return text
+    return None
+
+
+def _poi_route_point(result: dict[str, Any]) -> GeoPoint | None:
+    entry_points = result.get("entryPoints")
+    if not isinstance(entry_points, list):
+        return None
+    fallback: GeoPoint | None = None
+    for entry_point in entry_points:
+        if not isinstance(entry_point, dict):
+            continue
+        point = _point_from_lat_lon(entry_point.get("position"))
+        if point is None:
+            continue
+        if str(entry_point.get("type", "")).casefold() == "main":
+            return point
+        fallback = fallback or point
+    return fallback
+
+
+def _point_from_lat_lon(position: object) -> GeoPoint | None:
+    if not isinstance(position, dict):
+        return None
+    try:
+        latitude = float(position.get("lat", position.get("latitude")))
+        longitude = float(position.get("lon", position.get("longitude")))
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(latitude) or not math.isfinite(longitude):
+        return None
+    try:
+        return GeoPoint(latitude=latitude, longitude=longitude)
+    except ValueError:
+        return None
+
+
+def _bounded_text(value: object, max_length: int) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = value.strip()
+    return cleaned[:max_length] if cleaned else None
+
+
+def _optional_finite_float(value: object) -> float | None:
+    try:
+        result = float(value)
+    except (TypeError, ValueError):
+        return None
+    return result if math.isfinite(result) else None
 
 
 def _route_matrix_payload(
