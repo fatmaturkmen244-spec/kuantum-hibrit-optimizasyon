@@ -282,7 +282,10 @@
   async function loadAdminCatalog() {
     const note = document.getElementById("place-note");
     try {
-      const response = await fetch("./data/turkiye-il-ilce-konumlari.json", { cache: "force-cache" });
+      // GitHub Pages dağıtımı sırasında eski bir 404 yanıtını önbellekten alma.
+      // Veri küçük ve sürümü sayfayla birlikte güncelleniyor; bu nedenle güncel
+      // katalog yanıtını doğrulamak, ilk aramanın boş kalmamasından daha önemlidir.
+      const response = await fetch("./data/turkiye-il-ilce-konumlari.json?v=2026-10-26", { cache: "no-cache" });
       if (!response.ok) throw new Error("Katalog yüklenemedi.");
       const payload = await response.json();
       const provinces = Array.isArray(payload.provinces) ? payload.provinces : [];
