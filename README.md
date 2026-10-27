@@ -6,7 +6,6 @@ Microsoft Azure OpenAI, Microsoft QDK ve Azure Quantum entegrasyonuna hazır; do
 
 - **Canlı laboratuvar:** https://fatmaturkmen244-spec.github.io/kuantum-hibrit-optimizasyon/
 - **Sunum:** [Quantum_Route_Lab_Sunum_v2.pptx](Quantum_Route_Lab_Sunum_v2.pptx)
-- **2 dakikalık proje videosu:** https://youtu.be/JZYghIdtH5U
 
 Web laboratuvarı tarayıcı içinde kesin, klasik hızlı ve kuantum-esinli olasılık modelini çalıştırır. Microsoft Q# ve Azure Quantum özellikleri, Python/QDK tabanlı tam uygulamada çalışır; arayüz bu seviyeleri birbirinden açıkça ayırır.
 
